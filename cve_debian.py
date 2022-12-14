@@ -35,7 +35,7 @@ def arg_parsing():
         raise Exception(
             "Wrong Debian version. Available versions: sarge, etch, lenny, squeeze, wheezy, jessie, stretch, buster, bullseye")
 
-    if not bool(re.match("^2\d{3}-(0\d{2}[1-9]|[1-9]\d{3,})$", args.cve_number)):
+    if not bool(re.match(r"^2\d{3}-(0\d{2}[1-9]|[1-9]\d{3,})$", args.cve_number)):
         raise Exception("Wrong CVE formatting. Please enter a number like '2022-38392'.")
     return args
 
@@ -214,7 +214,7 @@ def get_hash_and_bin_names(args: argparse.Namespace, cve_details: list[dict]) ->
             el["bin_name"] = ""
 
         if args.bin_package:
-            if bool(re.match(".*\s%s\s.*" % args.bin_package, el["bin_name"])):
+            if bool(re.match(r".*\s%s\s.*" % args.bin_package, el["bin_name"])):
                 el["bin_name"] = args.bin_package
             else:
                 raise Exception("Non existing binary package provided. Check your '-p' option.")
@@ -247,13 +247,14 @@ def write_sources(args, snapshot_id, vuln_fixed: bool):
         else:
             file.write("deb http://deb.debian.org/debian %s main\n"
                        "deb http://deb.debian.org/debian-security %s-security main\n"
-                       "deb http://deb.debian.org/debian %s-updates main\n"%(latest_version, latest_version, latest_version))
+                       "deb http://deb.debian.org/debian %s-updates main\n" % (
+                           latest_version, latest_version, latest_version))
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
     packages_string = "".join([i["bin_name"] + " " for i in cve_details]).strip()
     if not vuln_fixed:
-        print('\n\n Vulnerability unfixed. Using a %s container.\n\n' % latest_version)
+        print('\n\nVulnerability unfixed. Using a %s container.\n\n' % latest_version)
         args.version = latest_version
 
     docker_image_name = "%s/cve-%s" % (args.version, args.cve_number)
@@ -265,12 +266,12 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         if bool(i):
             raise Exception("The building process has failed.")
 
-        print("Running the Docker")
+        print("Running the Docker")  # Building the docker run command
         run_cmd = "sudo docker run --privileged -v %s:/tmp/snappy -h 'cve-%s' --name cve-%s " % (
             os.path.abspath(args.directory), args.cve_number, args.cve_number)
         if args.port:
             run_cmd += "-p %d:%d" % (args.port, args.port)
-        run_cmd += " -it --rm %s " % docker_image_name
+        run_cmd += " -it --rm %s" % docker_image_name
         os.system("%s" % run_cmd)
 
     except Exception as e:
