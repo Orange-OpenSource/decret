@@ -235,20 +235,19 @@ def get_snapshot(cve_details: list[dict]):
         return snapshot_id
 
 
-def write_sources(args, snapshot_id, vuln_fixed: bool):
-    with open("%s/sources.list" % args.directory, "w") as file:  # TODO : make only one write() call
+def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
+    with open("%s/sources.list" % args.directory, "w") as file:
         if vuln_fixed:
-            file.write("deb http://snapshot.debian.org/archive/debian/%s/ %s main\n" % (snapshot_id, args.version))
-            file.write("#deb-src http://snapshot.debian.org/archive/debian/%s/ %s main\n" % (snapshot_id, args.version))
-            file.write("#deb http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n" % (
-                snapshot_id, args.version))
-            file.write("#deb-src http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n" % (
-                snapshot_id, args.version))
+            file.write("deb http://snapshot.debian.org/archive/debian/%s/ %s main\n"
+                       "#deb-src http://snapshot.debian.org/archive/debian/%s/ %s main\n"
+                       "#deb http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n"
+                       "#deb-src http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n" % (
+                           4*(snapshot_id, args.version,)))
         else:
             file.write("deb http://deb.debian.org/debian %s main\n"
                        "deb http://deb.debian.org/debian-security %s-security main\n"
                        "deb http://deb.debian.org/debian %s-updates main\n" % (
-                           latest_version, latest_version, latest_version))
+                           3*(latest_version,)))
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
