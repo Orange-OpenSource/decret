@@ -7,6 +7,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
 import time
 
+latest_version = "bullseye"
+
 
 def arg_parsing():
     debian_versions = ["sarge", "etch", "lenny", "squeeze", "wheezy", "jessie", "stretch", "buster", "bullseye"]
@@ -243,13 +245,17 @@ def write_sources(args, snapshot_id, vuln_fixed: bool):
             file.write("#deb-src http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n" % (
                 snapshot_id, args.version))
         else:
-            file.write("deb http://deb.debian.org/debian bullseye main\n"
-                       "deb http://deb.debian.org/debian-security bullseye-security main\n"
-                       "deb http://deb.debian.org/debian bullseye-updates main\n")
+            file.write("deb http://deb.debian.org/debian %s main\n"
+                       "deb http://deb.debian.org/debian-security %s-security main\n"
+                       "deb http://deb.debian.org/debian %s-updates main\n"%(latest_version, latest_version, latest_version))
 
 
-def docker_build_and_run(args, cve_details):
+def docker_build_and_run(args, cve_details, vuln_fixed):
     packages_string = "".join([i["bin_name"] + " " for i in cve_details]).strip()
+    if not vuln_fixed:
+        print('\n\n Vulnerability unfixed. Using a %s container.\n\n' % latest_version)
+        args.version = latest_version
+
     docker_image_name = "%s/cve-%s" % (args.version, args.cve_number)
     print("Building the Docker image")
     try:
@@ -303,7 +309,7 @@ def main():
 
     write_sources(args, snapshot_id, vuln_fixed)
 
-    docker_build_and_run(args, cve_details)
+    docker_build_and_run(args, cve_details, vuln_fixed)
 
     return 0
 
