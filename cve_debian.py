@@ -23,6 +23,7 @@ def arg_parsing():
     parser.add_argument("--fixed-version", dest="fixed_version", type=str,
                         help="The fixed version number of the package")
     parser.add_argument("-p", "--package", dest="bin_package", type=str, help="Name of the binary package targeted.")
+    parser.add_argument("--port", dest="port", type=int, help="Port forwarding between the Docker and the host")
     parser.add_argument("-s", "--selenium", dest="selenium", action='store_true',
                         help="Activate the use of selenium (mandatory to download the exploit)")
 
@@ -259,8 +260,13 @@ def docker_build_and_run(args, cve_details):
             raise Exception("The building process has failed.")
 
         print("Running the Docker")
-        os.system("sudo docker run --privileged -v %s:/tmp/snappy -h 'cve-%s' --name cve-%s -it --rm %s " % (
-            os.path.abspath(args.directory), args.cve_number, args.cve_number, docker_image_name))
+        run_cmd = "sudo docker run --privileged -v %s:/tmp/snappy -h 'cve-%s' --name cve-%s " % (
+            os.path.abspath(args.directory), args.cve_number, args.cve_number)
+        if args.port:
+            run_cmd += "-p %d:%d" % (args.port, args.port)
+        run_cmd += " -it --rm %s " % docker_image_name
+        os.system("%s" % run_cmd)
+
     except Exception as e:
         exit(e)
 
