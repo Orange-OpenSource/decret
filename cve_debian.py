@@ -84,6 +84,7 @@ def search_in_table(version: str, info_table) -> (list[dict], str):
     results = []
     available_versions = ""
     i = 0
+    desired_version = False
     for row in info_table.find_elements(By.XPATH, "./tr"):
         if i == 0:
             i += 1
@@ -95,6 +96,7 @@ def search_in_table(version: str, info_table) -> (list[dict], str):
                  'fixed_version': "(unfixed)"})
         else:
             if version in data:
+                desired_version = True
                 src_package = data[0]
                 release = data[2]
                 fixed_version = data[3]
@@ -102,6 +104,9 @@ def search_in_table(version: str, info_table) -> (list[dict], str):
             else:
                 available_versions += "%s," % data[2]
         i += 1
+
+    if desired_version:  # If the desired version of Debian is present, we remove the unfixed version.
+        results = [results[i] for i in range(len(results)) if results[i]["release"] == version]
     return results, available_versions[:-1]
 
 
