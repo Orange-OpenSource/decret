@@ -70,7 +70,8 @@ def check_docker():  # Check if curl is installed
         else:
             raise Exception
     except Exception:
-        raise Exception("Docker error. Check it is installed and you can use it (see docker -v). Check : https://docs.docker.com/engine/install/")
+        raise Exception(
+            "Docker error. Check it is installed and you can use it (see docker -v). Check : https://docs.docker.com/engine/install/")
 
 
 def check_requirements():
@@ -102,7 +103,7 @@ def get_exploit(browser, args: argparse.Namespace):
         i += 1
 
 
-def prepare_browser():  # TODO: make it universal
+def prepare_browser():
     try:
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
