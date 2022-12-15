@@ -4,7 +4,6 @@ import re
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.service import Service
 import subprocess
 import time
 
@@ -106,10 +105,7 @@ def get_exploit(browser, args: argparse.Namespace):
 def prepare_browser():  # TODO: make it universal
     try:
         options = webdriver.FirefoxOptions()
-        # options.binary_location = "/usr/bin/firefox"
         options.add_argument("--headless")
-        # driverService = Service('/usr/local/bin/geckodriver')
-        # return webdriver.Firefox(service=driverService, options=options)
         return webdriver.Firefox(options=options)
     except Exception as e:
         raise Exception("%s : Selenium not installed ?" % e)
@@ -289,7 +285,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         args.version = latest_version
 
     docker_image_name = "%s/cve-%s" % (args.version, args.cve_number)
-    print("Building the Docker image")
+    print("Building the Docker image.")
     try:
         i = os.system(
             "sudo docker build -t %s --build-arg DEBIAN_VERSION=%s --build-arg PACKAGE_NAME='%s' --build-arg DIRECTORY=%s . || false" % (
@@ -297,7 +293,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         if bool(i):
             raise Exception("The building process has failed.")
 
-        print("Running the Docker")  # Building the docker run command
+        print("Running the Docker. The shared directory is '/tmp/snappy'.")  # Building the docker run command
         run_cmd = "sudo docker run --privileged -v %s:/tmp/snappy -h 'cve-%s' --name cve-%s " % (
             os.path.abspath(args.directory), args.cve_number, args.cve_number)
         if args.port:
@@ -350,4 +346,3 @@ def main():
 if __name__ == "__main__":
     start = time.time()
     main()
-    # print("Executed in %.2fs." % (time.time() - start))
