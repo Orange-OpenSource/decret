@@ -5,6 +5,7 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.service import Service
+import subprocess
 import time
 
 latest_version = "bullseye"
@@ -42,10 +43,41 @@ def arg_parsing():
 
 def check_curl():  # Check if curl is installed
     try:
-        os.system('curl -V')
-        return True
+        i = int(subprocess.check_output('curl -V >/dev/null && echo $?', stderr=subprocess.STDOUT, shell=True))
+        if i == 0:
+            return True
+        else:
+            raise Exception
     except Exception:
-        raise Exception("Curl is not installed. Please install it and retry.")
+        raise Exception("Curl is not installed. Check it is installed and you can use it (see curl -V).")
+
+
+def check_firefox():  # Check if curl is installed
+    try:
+        i = int(subprocess.check_output('firefox -v >/dev/null && echo $?', stderr=subprocess.STDOUT, shell=True))
+        if i == 0:
+            return True
+        else:
+            raise Exception
+    except Exception:
+        raise Exception("Firefox error. Check it is installed and you can use it (see firefox -v).")
+
+
+def check_docker():  # Check if curl is installed
+    try:
+        i = int(subprocess.check_output('docker -v >/dev/null && echo $?', stderr=subprocess.STDOUT, shell=True))
+        if i == 0:
+            return True
+        else:
+            raise Exception
+    except Exception:
+        raise Exception("Docker error. Check it is installed and you can use it (see docker -v). Check : https://docs.docker.com/engine/install/")
+
+
+def check_requirements():
+    check_curl()
+    check_docker()
+    check_firefox()
 
 
 def get_exploit(browser, args: argparse.Namespace):
@@ -67,18 +99,18 @@ def get_exploit(browser, args: argparse.Namespace):
         if verified:
             name_file += "_verified"
 
-        if check_curl():
-            os.system("curl %s > %s/%s" % (link_exploit, args.directory, name_file))
+        os.system("curl %s > %s/%s" % (link_exploit, args.directory, name_file))
         i += 1
 
 
 def prepare_browser():  # TODO: make it universal
     try:
         options = webdriver.FirefoxOptions()
-        options.binary_location = "/usr/bin/firefox"
+        # options.binary_location = "/usr/bin/firefox"
         options.add_argument("--headless")
-        driverService = Service('/usr/local/bin/geckodriver')
-        return webdriver.Firefox(service=driverService, options=options)
+        # driverService = Service('/usr/local/bin/geckodriver')
+        # return webdriver.Firefox(service=driverService, options=options)
+        return webdriver.Firefox(options=options)
     except Exception as e:
         raise Exception("%s : Selenium not installed ?" % e)
 
@@ -242,12 +274,12 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
                        "#deb-src http://snapshot.debian.org/archive/debian/%s/ %s main\n"
                        "#deb http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n"
                        "#deb-src http://snapshot.debian.org/archive/debian-security/%s/ %s-updates main\n" % (
-                           4*(snapshot_id, args.version,)))
+                               4 * (snapshot_id, args.version,)))
         else:
             file.write("deb http://deb.debian.org/debian %s main\n"
                        "deb http://deb.debian.org/debian-security %s-security main\n"
                        "deb http://deb.debian.org/debian %s-updates main\n" % (
-                           3*(latest_version,)))
+                               3 * (latest_version,)))
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
@@ -280,6 +312,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
 def main():
     try:
         args = arg_parsing()
+        check_requirements()
         if args.selenium:  # Get the exploits from https://www.exploit-db.com/
             browser = prepare_browser()
             get_exploit(browser, args)
