@@ -295,11 +295,13 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
             raise Exception("The building process has failed.")
 
         print("Running the Docker. The shared directory is '/tmp/snappy'.")  # Building the docker run command
+
         run_cmd = "sudo docker run --privileged -v %s:/tmp/snappy -h 'cve-%s' --name cve-%s " % (
             os.path.abspath(args.directory), args.cve_number, args.cve_number)
         if args.port:
             run_cmd += "-p %d:%d" % (args.port, args.port)
         run_cmd += " -it --rm %s" % docker_image_name
+
         os.system("%s" % run_cmd)
 
     except Exception as e:
@@ -334,7 +336,7 @@ def main():
     cve_details = get_hash_and_bin_names(args, cve_details)
     snapshot_id = min(get_snapshot(cve_details))  # We keep the oldest snapshot possibility
 
-    if not os.path.exists(args.directory):
+    if not os.path.exists(args.directory):  # Create the directory if necessary
         os.makedirs(args.directory)
 
     write_sources(args, snapshot_id, vuln_fixed)
