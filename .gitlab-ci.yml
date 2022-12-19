@@ -1,0 +1,31 @@
+test-pylint:
+        stage: test
+        image: python:3.10
+        script:
+                - pip install -r requirements.txt
+                - pylint --fail-under 9 *.py
+        coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+\%)/'
+
+test-python3.9:
+        stage: test
+        image: python:3.9
+        script:
+                - pip install -r requirements.txt
+                - pytest --cov=. --cov-fail-under=30 *.py
+        coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+\%)/'
+
+test-python3.10:
+        stage: test
+        image: python:3.10
+        script:
+                - pip install -r requirements.txt
+                - pytest --cov=. --cov-fail-under=30 *.py
+        coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+\%)/'
+
+test-python3.11:
+        stage: test
+        image: python:3.11
+        script:
+                - pip install -r requirements.txt
+                - pytest --cov=. --cov-fail-under=30 *.py
+        coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+\%)/'
