@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import argparse
 import os
 import re
@@ -156,7 +158,7 @@ def prepare_browser():
         raise Exception("Selenium not installed ?") from exc
 
 
-def search_in_table(version: str, info_table) -> (list[dict], list[str]):
+def search_in_table(version: str, info_table) -> Tuple[list[dict], list[str]]:
     results = []
     available_versions = []
     i = 0
@@ -200,7 +202,7 @@ def search_in_table(version: str, info_table) -> (list[dict], list[str]):
     return results, available_versions
 
 
-def get_cve_details_from_selenium(browser, args: argparse.Namespace):
+def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dict]:
     cve_id = f"CVE-{args.cve_number}"
     try:
         browser.get(f"https://security-tracker.debian.org/tracker/{cve_id}")
@@ -284,7 +286,7 @@ def get_vuln_version(cve_details: list[dict]) -> list[dict]:
     return cve_details
 
 
-def get_bin_names(cve_details) -> list[str]:
+def get_bin_names(cve_details: list[dict]) -> list[str]:
     bin_names = []
     for item in cve_details:
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/{item['vuln_version']}/binpackages"
@@ -418,7 +420,8 @@ def main():  # pragma: no cover
     try:
         args = arg_parsing()
         check_requirements(args)
-        if args.selenium:  # Get the exploits from https://www.exploit-db.com/
+        if args.selenium:
+            # Get the exploits from https://www.exploit-db.com/
             browser = prepare_browser()
             get_exploit(browser, args)
     except Exception as exc:
