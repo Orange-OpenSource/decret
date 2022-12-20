@@ -129,6 +129,14 @@ def check_requirements(args):
         check_program_is_present("Firefox", ["firefox", "-v"])
 
 
+def init_shared_directory(args):
+    args.directory = Path(args.dirname)
+    try:
+        args.directory.mkdir(parents=True, exist_ok=True)
+    except PermissionError as exc:
+        raise FatalError(f"Error while creating {args.dirname}") from exc
+
+
 def get_exploit(browser, args: argparse.Namespace):
     browser.get(f"https://www.exploit-db.com/search?cve={args.cve_number}")
     time.sleep(3)
@@ -156,13 +164,9 @@ def get_exploit(browser, args: argparse.Namespace):
 
 
 def prepare_browser():
-    try:
-        options = webdriver.FirefoxOptions()
-        options.add_argument("--headless")
-        return webdriver.Firefox(options=options)
-    except WebDriverException as exc:
-        print(exc)
-        raise Exception("Selenium not installed ?") from exc
+    options = webdriver.FirefoxOptions()
+    options.add_argument("--headless")
+    return webdriver.Firefox(options=options)
 
 
 def search_in_table(version: str, info_table) -> Tuple[list[dict], list[str]]:
@@ -213,16 +217,16 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
     cve_id = f"CVE-{args.cve_number}"
     try:
         browser.get(f"https://security-tracker.debian.org/tracker/{cve_id}")
-    except Exception as exc:
+    except WebDriverException as exc:
         raise Exception("Selenium : Page not found. Wrong CVE number ?") from exc
 
     try:
         info_table = browser.find_element(By.XPATH, "/html/body/table[3]/tbody")
 
-    except Exception:
+    except WebDriverException:
         try:
             info_table = browser.find_element(By.XPATH, "/html/body/table[2]/tbody")
-        except Exception as exc:
+        except WebDriverException as exc:
             raise Exception(
                 "Selenium : Table not found. Are you connected to internet ?"
             ) from exc
@@ -395,95 +399,113 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
         args.version = LATEST_VERSION
 
-    docker_image_name = f"{args.version}/cve-{args.cve_number}"
     print("Building the Docker image.")
+    docker_image_name = f"{args.version}/cve-{args.cve_number}"
+
+    if args.do_not_use_sudo:
+        build_cmd = []
+    else:
+        build_cmd = ["sudo"]
+    build_cmd.extend(["docker", "build"])
+    build_cmd.extend(["-t", docker_image_name])
+    for arg_name, arg_value in [
+        ("DEBIAN_VERSION", args.version),
+        ("PACKAGE_NAME", packages_string),
+        ("DIRECTORY", args.dirname),
+    ]:
+        build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
+    build_cmd.append(".")
+
     try:
-        if args.do_not_use_sudo:
-            build_cmd = []
-        else:
-            build_cmd = ["sudo"]
-        build_cmd.extend(["docker", "build"])
-        build_cmd.extend(["-t", docker_image_name])
-        for arg_name, arg_value in [
-            ("DEBIAN_VERSION", args.version),
-            ("PACKAGE_NAME", packages_string),
-            ("DIRECTORY", args.dirname),
-        ]:
-            build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
-        build_cmd.append(".")
-        try:
-            subprocess.run(build_cmd, check=True)
-        except subprocess.CalledProcessError as exc:
-            print("The building process has failed.", file=sys.stderr)
-            raise exc
+        subprocess.run(build_cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise FatalError("Error while building the container") from exc
 
-        print("Running the Docker. The shared directory is '/tmp/snappy'.")
+    print("Running the Docker. The shared directory is '/tmp/snappy'.")
 
-        if args.do_not_use_sudo:
-            run_cmd = []
-        else:
-            run_cmd = ["sudo"]
-        run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
-        run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/snappy"])
-        run_cmd.extend(["-h", f"cve-{args.cve_number}"])
-        run_cmd.extend(["--name", f"cve-{args.cve_number}"])
-        if args.port:
-            run_cmd.extend(["-p" f"{args.port}:{args.port}"])
-        run_cmd.append(docker_image_name)
+    if args.do_not_use_sudo:
+        run_cmd = []
+    else:
+        run_cmd = ["sudo"]
+    run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
+    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/snappy"])
+    run_cmd.extend(["-h", f"cve-{args.cve_number}"])
+    run_cmd.extend(["--name", f"cve-{args.cve_number}"])
+    if args.port:
+        run_cmd.extend(["-p" f"{args.port}:{args.port}"])
+    run_cmd.append(docker_image_name)
 
+    try:
         subprocess.run(run_cmd, check=True)
-
-    except Exception as exc:
-        exit(exc)
+    except subprocess.CalledProcessError as exc:
+        raise FatalError("Error while running the container") from exc
 
 
 def main():  # pragma: no cover
-    try:
-        args = arg_parsing()
-        check_requirements(args)
-        if args.selenium:
-            # Get the exploits from https://www.exploit-db.com/
+    # First handle the parameters
+    args = arg_parsing()
+    check_requirements(args)
+    init_shared_directory(args)
+
+    browser = None
+    # Initialize the selenium browser
+    if args.selenium:
+        try:
             browser = prepare_browser()
-            get_exploit(browser, args)
-    except Exception as exc:
-        exit(exc)
+        except WebDriverException as exc:
+            print(
+                f"Warning: could not initialize selenium properly: {exc}\n"
+                "Deactivating --selenium and trying to continue",
+                file=sys.stderr,
+            )
+            browser = None
+            args.selenium = None
 
-    args.directory = Path(args.dirname)
-    if not args.directory.exists():
-        args.directory.mkdir(parents=True, exist_ok=True)
-
+    # Then get the details for the given CVE
     try:
         # We try to get the details by the Debian JSON
         cve_details = get_cve_details_from_json(args)
-    except CVENotFound:
-        if args.selenium:
-            try:
-                # We use Selenium when the CVE is not in the Tracker JSON
-                cve_details = get_cve_details_from_selenium(browser, args)
-            except Exception as exc:
-                exit(exc)
-            finally:
-                browser.quit()
-        else:
-            exit(
-                "Can't get the details for CVE. You should activate selenium with --selenium."
-            )
+    except CVENotFound as exc:
+        # We try Selenium when the CVE is not in the Tracker JSON
+        if not browser:
+            raise FatalError(
+                "Can't get the details for CVE. Please consider using --selenium."
+            ) from exc
 
-    vuln_fixed = not any(
-        [item["fixed_version"] == "(unfixed)" for item in cve_details]
-    )  # False if (unfixed) in cve_details
+        try:
+            cve_details = get_cve_details_from_selenium(browser, args)
+        except Exception as selenium_exc:
+            raise FatalError(
+                "Error while retrieving CVE details using Selenium"
+            ) from selenium_exc
+        finally:
+            browser.quit()
+
+    # vuln_fixed is False if (unfixed) in cve_details
+    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
+
     cve_details = get_vuln_version(cve_details)
     cve_details = get_hash_and_bin_names(args, cve_details)
-    snapshot_id = min(
-        get_snapshot(cve_details)
-    )  # We keep the oldest snapshot possibility
+
+    # We keep the oldest snapshot possibility
+    snapshot_id = min(get_snapshot(cve_details))
+
+    if browser:
+        try:
+            # Get the exploits from https://www.exploit-db.com/
+            get_exploit(browser, args)
+        except WebDriverException as exc:
+            print(f"Warning: could not fetch exploits properly: {exc}", file=sys.stderr)
+        finally:
+            browser.quit()
 
     write_sources(args, snapshot_id, vuln_fixed)
-
     docker_build_and_run(args, cve_details, vuln_fixed)
-
-    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    try:
+        main()
+    except FatalError as fatal_exc:
+        print(fatal_exc, file=sys.stderr)
+        sys.exit(1)
