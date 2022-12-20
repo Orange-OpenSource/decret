@@ -11,6 +11,7 @@ import time
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import WebDriverException
 
 DEBIAN_VERSIONS = [
     "sarge",
@@ -159,7 +160,8 @@ def prepare_browser():
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
         return webdriver.Firefox(options=options)
-    except Exception as exc:
+    except WebDriverException as exc:
+        print(exc)
         raise Exception("Selenium not installed ?") from exc
 
 
