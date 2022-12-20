@@ -123,7 +123,6 @@ def check_program_is_present(progname, cmdline):
 
 
 def check_requirements(args):
-    check_program_is_present("Curl", ["curl", "-V"])
     check_program_is_present("Docker", ["docker", "-v"])
     if args.selenium:
         check_program_is_present("Firefox", ["firefox", "-v"])
@@ -147,20 +146,22 @@ def get_exploit(browser, args: argparse.Namespace):
     i = 0
     for row in exploit_table.find_elements(By.XPATH, "./tr"):
         if row.text == "No data available in table":
-            print("No exploit available. Continuing.")
-            break
+            return 0
         link_exploit = row.find_element(By.XPATH, "./td[2]/a").get_attribute("href")
         verified = bool(
             "check" in row.find_element(By.XPATH, "./td[4]/i").get_attribute("class")
         )
+
         exploit_filename = f"exploit_{i}"
         if verified:
             exploit_filename += "_verified"
         exploit_path = args.directory / exploit_filename
 
-        with exploit_path.open("wb") as exploit_file:
-            subprocess.run(["curl", link_exploit], stdout=exploit_file, check=True)
+        headers = {"User-agent": "curl/7.74.0"}
+        exploit = requests.get(link_exploit, headers=headers, timeout=DEFAULT_TIMEOUT)
+        exploit_path.write_bytes(exploit.content)
         i += 1
+    return i
 
 
 def prepare_browser():
@@ -493,7 +494,8 @@ def main():  # pragma: no cover
     if browser:
         try:
             # Get the exploits from https://www.exploit-db.com/
-            get_exploit(browser, args)
+            n_exploits = get_exploit(browser, args)
+            print(f"Found {n_exploits} files.")
         except WebDriverException as exc:
             print(f"Warning: could not fetch exploits properly: {exc}", file=sys.stderr)
         finally:

@@ -4,7 +4,6 @@ This tool reproduces a vulnerable environment for a given CVE number.
 
 
 ## Requirements 
-- Curl
 - Docker (see the [official documentation](https://docs.docker.com/engine/install/))
 - Firefox
 
