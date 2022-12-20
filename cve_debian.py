@@ -1,7 +1,9 @@
 from typing import Tuple
 
 import argparse
+import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -94,6 +96,12 @@ def arg_parsing():
         dest="do_not_use_sudo",
         action="store_true",
         help="Do not use sudo to run docker commands",
+    )
+    parser.add_argument(
+        "--cache-main-json-file",
+        dest="cache_main_json_file",
+        type=str,
+        help="Path to load/save https://security-tracker.debian.org/tracker/data/json",
     )
 
     args = parser.parse_args()
@@ -232,11 +240,24 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
 
 
 def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
-    cve_id = f"CVE-{args.cve_number}"
-    url = "https://security-tracker.debian.org/tracker/data/json"
-    response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()
+    response = None
+    if args.cache_main_json_file:
+        json_cache_file = Path(args.cache_main_json_file)
+        if json_cache_file.exists():
+            json_content = json_cache_file.read_text(encoding="utf-8")
+            response = json.loads(json_content)
+    if not response:
+        url = "https://security-tracker.debian.org/tracker/data/json"
+        print(f"Fetching {url}")
+        server_answer = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response = server_answer.json()
+        if args.cache_main_json_file:
+            json_cache_file = Path(args.cache_main_json_file)
+            json_cache_file.write_bytes(server_answer.content)
+
     results = []
 
+    cve_id = f"CVE-{args.cve_number}"
     for package_name, package_info in response.items():
         if cve_id not in package_info:
             continue
