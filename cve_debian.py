@@ -2,7 +2,6 @@ from typing import Tuple
 
 import argparse
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -60,7 +59,7 @@ def arg_parsing():
     parser.add_argument(
         "-d",
         "--directory",
-        dest="directory",
+        dest="dirname",
         type=str,
         help="Directory path for the CVE experiment",
         default="./default",
@@ -136,9 +135,6 @@ def get_exploit(browser, args: argparse.Namespace):
         By.XPATH, "./tbody"
     )
 
-    if not os.path.exists(args.directory):
-        os.makedirs(args.directory)
-
     i = 0
     for row in exploit_table.find_elements(By.XPATH, "./tr"):
         if row.text == "No data available in table":
@@ -148,11 +144,12 @@ def get_exploit(browser, args: argparse.Namespace):
         verified = bool(
             "check" in row.find_element(By.XPATH, "./td[4]/i").get_attribute("class")
         )
-        name_file = f"exploit_{i}"
+        exploit_filename = f"exploit_{i}"
         if verified:
-            name_file += "_verified"
+            exploit_filename += "_verified"
+        exploit_path = args.directory / exploit_filename
 
-        with open(f"{args.directory}/{name_file}", "wb") as exploit_file:
+        with exploit_path.open("wb") as exploit_file:
             subprocess.run(["curl", link_exploit], stdout=exploit_file, check=True)
         i += 1
 
@@ -373,13 +370,14 @@ def get_snapshot(cve_details: list[dict]):
 
 
 def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
-    with open(f"{args.directory}/sources.list", "w", encoding="utf-8") as file:
+    sources_path = args.directory / "sources.list"
+    with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
-            file.write(
+            sources_file.write(
                 f"deb http://snapshot.debian.org/archive/debian/{snapshot_id}/ {args.version} main\n"
             )
         else:
-            file.write(
+            sources_file.write(
                 f"deb http://deb.debian.org/debian {LATEST_VERSION} main\n"
                 f"deb http://deb.debian.org/debian-security {LATEST_VERSION}-security main\n"
                 f"deb http://deb.debian.org/debian {LATEST_VERSION}-updates main\n"
@@ -407,7 +405,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         for arg_name, arg_value in [
             ("DEBIAN_VERSION", args.version),
             ("PACKAGE_NAME", packages_string),
-            ("DIRECTORY", args.directory),
+            ("DIRECTORY", args.dirname),
         ]:
             build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
         build_cmd.append(".")
@@ -424,7 +422,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         else:
             run_cmd = ["sudo"]
         run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
-        run_cmd.extend(["-v", f"{os.path.abspath(args.directory)}:/tmp/snappy"])
+        run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/snappy"])
         run_cmd.extend(["-h", f"cve-{args.cve_number}"])
         run_cmd.extend(["--name", f"cve-{args.cve_number}"])
         if args.port:
@@ -447,6 +445,11 @@ def main():  # pragma: no cover
             get_exploit(browser, args)
     except Exception as exc:
         exit(exc)
+
+    args.directory = Path(args.dirname)
+    if not args.directory.exists():
+        args.directory.mkdir(parents=True, exist_ok=True)
+
     try:
         # We try to get the details by the Debian JSON
         cve_details = get_cve_details_from_json(args)
@@ -472,9 +475,6 @@ def main():  # pragma: no cover
     snapshot_id = min(
         get_snapshot(cve_details)
     )  # We keep the oldest snapshot possibility
-
-    if not os.path.exists(args.directory):  # Create the directory if necessary
-        os.makedirs(args.directory)
 
     write_sources(args, snapshot_id, vuln_fixed)
 
