@@ -1,1 +1,6 @@
 geckodriver.log
+venv
+*.pyc
+*~
+.coverage
+__pycache__
