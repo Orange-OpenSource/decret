@@ -3,7 +3,7 @@ test-pylint:
         image: python:3.10
         script:
                 - pip install -r requirements.txt
-                - pylint --fail-under 9 *.py
+                - pylint *.py
 
 test-mypy:
         stage: test

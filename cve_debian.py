@@ -314,6 +314,7 @@ def get_vuln_version(cve_details: list[dict]) -> list[dict]:
 def get_bin_names(cve_details: list[dict]) -> list[str]:
     bin_names = []
     for item in cve_details:
+        # pylint: disable=line-too-long
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/{item['vuln_version']}/binpackages"
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
         for res in response:
@@ -328,16 +329,19 @@ def get_hash_and_bin_names(
     i = 0
     for item in cve_details:
         try:
+            # pylint: disable=line-too-long
             url = f"http://snapshot.debian.org/mr/binary/{item['src_package']}/{item['vuln_version']}/binfiles"
             response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
             for res in response:
                 if res["architecture"] == "amd64" or res["architecture"] == "all":
                     item["hash"] = res["hash"]
             item["bin_name"] = [item["src_package"]]
+        # pylint: disable=broad-except
         except Exception:
             try:
                 # We get the hash from the src files, but we also collect the
                 # binary packages names associated for the Dockerfile.
+                # pylint: disable=line-too-long
                 url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/{item['vuln_version']}/srcfiles"
                 response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
                 item["hash"] = response[-1]["hash"]
@@ -380,15 +384,12 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     sources_path = args.directory / "sources.list"
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
-            sources_file.write(
-                f"deb http://snapshot.debian.org/archive/debian/{snapshot_id}/ {args.version} main\n"
-            )
+            url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
+            release = "args.version"
         else:
-            sources_file.write(
-                f"deb http://deb.debian.org/debian {LATEST_VERSION} main\n"
-                f"deb http://deb.debian.org/debian-security {LATEST_VERSION}-security main\n"
-                f"deb http://deb.debian.org/debian {LATEST_VERSION}-updates main\n"
-            )
+            url = "http://deb.debian.org/debian"
+            release = LATEST_VERSION
+        sources_file.write(f"deb {url} {release} main")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
