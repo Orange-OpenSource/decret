@@ -12,6 +12,13 @@ test-mypy:
                 - pip install -r requirements.txt
                 - mypy *.py
 
+test-pip-audit:
+        stage: test
+        image: python:3.10
+        script:
+                - pip install -r requirements.txt
+                - pip-audit
+
 test-python3.9:
         stage: test
         image: python:3.9
