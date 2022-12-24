@@ -106,7 +106,7 @@ def arg_parsing():
 
     args = parser.parse_args()
 
-    if not re.match(r"^2\d{3}-(0\d{2}[1-9]|[1-9]\d{3,})$", args.cve_number):
+    if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", args.cve_number):
         parser.print_usage(sys.stderr)
         raise FatalError("Wrong CVE format.")
 
@@ -357,7 +357,7 @@ def get_hash_and_bin_names(
 
         if args.bin_package:
             if args.bin_package in item["bin_name"]:
-                item["bin_name"] = args.bin_package
+                item["bin_name"] = [args.bin_package]
             else:
                 raise Exception(
                     "Non existing binary package provided. Check your '-p' option."
@@ -385,7 +385,7 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-            release = "args.version"
+            release = f"{args.version}"
         else:
             url = "http://deb.debian.org/debian"
             release = LATEST_VERSION
