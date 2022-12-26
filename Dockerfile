@@ -2,7 +2,7 @@ ARG DEBIAN_VERSION
 FROM debian:${DEBIAN_VERSION}
 
 ARG DIRECTORY
-COPY ${DIRECTORY}/sources.list /etc/apt/sources.list
+COPY ${DIRECTORY}/sources.list /etc/apt/sources.list.d/snapshot.list
 
 ARG DEFAULT_PACKAGE="strace nano"
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true update && apt-get install -y --force-yes --fix-missing ${DEFAULT_PACKAGE} || printf "\nCouldn't install basic packages %s.\n" "${DEFAULT_PACKAGE}" >&2

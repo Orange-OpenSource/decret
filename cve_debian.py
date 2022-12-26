@@ -385,18 +385,20 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-            release = f"{args.version}"
+        #   release = f"{args.version}"
         else:
             url = "http://deb.debian.org/debian"
-            release = LATEST_VERSION
-        sources_file.write(f"deb {url} {release} main")
+        #    release = LATEST_VERSION
+        sources_file.write(f"deb {url} unstable main")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
-        binary_packages.extend(item["bin_name"])
-    packages_string = " ".join(binary_packages)
+        bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
+        binary_packages.extend(bin_name_and_version) 
+    # binary_packages.extend(item["bin_name"])
+    packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
         args.version = LATEST_VERSION
