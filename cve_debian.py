@@ -396,7 +396,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
         bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
-        binary_packages.extend(bin_name_and_version) 
+        binary_packages.extend(bin_name_and_version)
     # binary_packages.extend(item["bin_name"])
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
