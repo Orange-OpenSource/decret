@@ -106,6 +106,9 @@ def arg_parsing():
 
     args = parser.parse_args()
 
+    if args.cache_main_json_file and args.selenium:
+        raise FatalError("Can't have both --selenium and --cache_main_json_file at the same time.")
+
     if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", args.cve_number):
         parser.print_usage(sys.stderr)
         raise FatalError("Wrong CVE format.")
