@@ -335,6 +335,7 @@ def get_hash_and_bin_names(
             for res in response:
                 if res["architecture"] == "amd64" or res["architecture"] == "all":
                     item["hash"] = res["hash"]
+                    break
             item["bin_name"] = [item["src_package"]]
         # pylint: disable=broad-except
         except Exception:
@@ -389,7 +390,7 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
         else:
             url = "http://deb.debian.org/debian"
         #    release = LATEST_VERSION
-        sources_file.write(f"deb {url} unstable main")
+        sources_file.write(f"deb {url} unstable main\n")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
