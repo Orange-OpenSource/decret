@@ -399,9 +399,14 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
-        bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
-        binary_packages.extend(bin_name_and_version)
-    # binary_packages.extend(item["bin_name"])
+        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable version is not found while it is present in the
+        # repo...
+
+        # bin_name_and_version = ""
+        # if item["bin_name"]:
+        #     bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
+        # binary_packages.extend(bin_name_and_version)
+        binary_packages.extend(item["bin_name"])
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
@@ -486,8 +491,6 @@ def main():  # pragma: no cover
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
             ) from selenium_exc
-        finally:
-            browser.quit()
 
     # vuln_fixed is False if (unfixed) in cve_details
     vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
@@ -502,7 +505,7 @@ def main():  # pragma: no cover
         try:
             # Get the exploits from https://www.exploit-db.com/
             n_exploits = get_exploit(browser, args)
-            print(f"Found {n_exploits} files.")
+            print(f"PoC : Found {n_exploits} exploits.")
         except WebDriverException as exc:
             print(f"Warning: could not fetch exploits properly: {exc}", file=sys.stderr)
         finally:
