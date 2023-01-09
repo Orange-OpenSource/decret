@@ -414,7 +414,11 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
 
     print("Building the Docker image.")
     docker_image_name = f"{args.version}/cve-{args.cve_number}"
-
+    cve_year = int(args.cve_number[:4])
+    if cve_year < 2018:
+        apt_flag = "--force-yes"
+    else:
+        apt_flag = "--allow-unauthenticated --allow-downgrades"
     if args.do_not_use_sudo:
         build_cmd = []
     else:
@@ -425,6 +429,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         ("DEBIAN_VERSION", args.version),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
+        ("APT_FLAG", apt_flag)
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(".")
