@@ -274,6 +274,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         if args.cache_main_json_file:
             json_cache_file = Path(args.cache_main_json_file)
             json_cache_file.write_bytes(server_answer.content)
+            print(f"Debian tracker JSON saved at {args.cache_main_json_file}.")
 
     results = []
 
@@ -351,6 +352,7 @@ def get_hash_and_bin_names(
             for res in response:
                 if res["architecture"] == "amd64" or res["architecture"] == "all":
                     item["hash"] = res["hash"]
+                    break
             item["bin_name"] = [item["src_package"]]
         # pylint: disable=broad-except
         except Exception:
@@ -378,7 +380,6 @@ def get_hash_and_bin_names(
                 raise Exception(
                     "Non existing binary package provided. Check your '-p' option."
                 )
-
         i += 1
     return cve_details
 
@@ -397,28 +398,41 @@ def get_snapshot(cve_details: list[dict]):
 
 
 def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
-    sources_path = args.directory / "sources.list"
+    sources_path = args.directory / "snapshot.list"
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-            release = f"{args.version}"
+        #   release = f"{args.version}"
         else:
             url = "http://deb.debian.org/debian"
-            release = LATEST_VERSION
-        sources_file.write(f"deb {url} {release} main")
+        #    release = LATEST_VERSION
+        sources_file.write(f"deb {url} unstable main\n")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
+        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable version is not found while it is present in the
+        # repo... Because it's the wrong dist release (sometimes unstbale, sometime testing, sometime main,etc.)
+        # Should we add all of them to be sure the desired version is here ?
+
+        # bin_name_and_version = ""
+        # if item["bin_name"]:
+        #     bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
+        # binary_packages.extend(bin_name_and_version)
         binary_packages.extend(item["bin_name"])
-    packages_string = " ".join(binary_packages)
+    packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
         args.version = LATEST_VERSION
 
     print("Building the Docker image.")
     docker_image_name = f"{args.version}/cve-{args.cve_number}"
+
+    if args.version in DEBIAN_VERSIONS[:6]:
+        apt_flag = "--force-yes"
+    else:
+        apt_flag = "--allow-unauthenticated --allow-downgrades"
 
     if args.do_not_use_sudo:
         build_cmd = []
@@ -430,6 +444,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         ("DEBIAN_VERSION", args.version),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
+        ("APT_FLAG", apt_flag)
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(".")
@@ -439,14 +454,14 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     except subprocess.CalledProcessError as exc:
         raise FatalError("Error while building the container") from exc
 
-    print("Running the Docker. The shared directory is '/tmp/snappy'.")
+    print("Running the Docker. The shared directory is '/tmp/anevrisme'.")
 
     if args.do_not_use_sudo:
         run_cmd = []
     else:
         run_cmd = ["sudo"]
     run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
-    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/snappy"])
+    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/anevrisme"])
     run_cmd.extend(["-h", f"cve-{args.cve_number}"])
     run_cmd.extend(["--name", f"cve-{args.cve_number}"])
     if args.port:
@@ -496,23 +511,26 @@ def main():  # pragma: no cover
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
             ) from selenium_exc
-        finally:
-            browser.quit()
 
     # vuln_fixed is False if (unfixed) in cve_details
     vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
+    print(f"CVE details fetched.\n {cve_details}\n\n")
 
+    print("Getting the vulnerable version.")
     cve_details = get_vuln_version(cve_details)
+    print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
+
+    print(f"Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
+    print(f"Source package hash : {cve_details[0]['hash']}\n\n")
 
     # We keep the oldest snapshot possibility
     snapshot_id = min(get_snapshot(cve_details))
-
     if browser:
         try:
             # Get the exploits from https://www.exploit-db.com/
             n_exploits = get_exploit(browser, args)
-            print(f"Found {n_exploits} files.")
+            print(f"PoC : Found {n_exploits} exploits.")
         except WebDriverException as exc:
             print(f"Warning: could not fetch exploits properly: {exc}", file=sys.stderr)
         finally:
