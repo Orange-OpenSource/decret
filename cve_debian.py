@@ -106,9 +106,6 @@ def arg_parsing():
 
     args = parser.parse_args()
 
-    if args.cache_main_json_file and args.selenium:
-        raise FatalError("Can't have both --selenium and --cache_main_json_file at the same time.")
-
     if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", args.cve_number):
         parser.print_usage(sys.stderr)
         raise FatalError("Wrong CVE format.")
@@ -261,6 +258,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         if args.cache_main_json_file:
             json_cache_file = Path(args.cache_main_json_file)
             json_cache_file.write_bytes(server_answer.content)
+            print(f"Debian tracker JSON saved at {args.cache_main_json_file}.")
 
     results = []
 
@@ -366,7 +364,6 @@ def get_hash_and_bin_names(
                 raise Exception(
                     "Non existing binary package provided. Check your '-p' option."
                 )
-
         i += 1
     return cve_details
 
@@ -385,7 +382,7 @@ def get_snapshot(cve_details: list[dict]):
 
 
 def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
-    sources_path = args.directory / "sources.list"
+    sources_path = args.directory / "snapshot.list"
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
@@ -400,7 +397,8 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
         # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable version is not found while it is present in the
-        # repo...
+        # repo... Because it's the wrong dist release (sometimes unstbale, sometime testing, sometime main,etc.)
+        # Should we add all of them to be sure the desired version is here ?
 
         # bin_name_and_version = ""
         # if item["bin_name"]:
@@ -414,11 +412,12 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
 
     print("Building the Docker image.")
     docker_image_name = f"{args.version}/cve-{args.cve_number}"
-    cve_year = int(args.cve_number[:4])
-    if cve_year < 2018:
+
+    if args.version in DEBIAN_VERSIONS[:6]:
         apt_flag = "--force-yes"
     else:
         apt_flag = "--allow-unauthenticated --allow-downgrades"
+
     if args.do_not_use_sudo:
         build_cmd = []
     else:
@@ -439,14 +438,14 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     except subprocess.CalledProcessError as exc:
         raise FatalError("Error while building the container") from exc
 
-    print("Running the Docker. The shared directory is '/tmp/snappy'.")
+    print("Running the Docker. The shared directory is '/tmp/anevrisme'.")
 
     if args.do_not_use_sudo:
         run_cmd = []
     else:
         run_cmd = ["sudo"]
     run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
-    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/snappy"])
+    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/anevrisme"])
     run_cmd.extend(["-h", f"cve-{args.cve_number}"])
     run_cmd.extend(["--name", f"cve-{args.cve_number}"])
     if args.port:
@@ -499,13 +498,18 @@ def main():  # pragma: no cover
 
     # vuln_fixed is False if (unfixed) in cve_details
     vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
+    print(f"CVE details fetched.\n {cve_details}\n\n")
 
+    print("Getting the vulnerable version.")
     cve_details = get_vuln_version(cve_details)
+    print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
+
+    print(f"Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
+    print(f"Source package hash : {cve_details[0]['hash']}\n\n")
 
     # We keep the oldest snapshot possibility
     snapshot_id = min(get_snapshot(cve_details))
-
     if browser:
         try:
             # Get the exploits from https://www.exploit-db.com/
