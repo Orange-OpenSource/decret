@@ -1,3 +1,19 @@
+"""
+Software Name : A New Expert Vulnerability Reproduction Instrument for Security and Manipulation Experiments (ANEVRISME)
+Version : 0.1
+SPDX-FileCopyrightText : Copyright (c) 2022
+SPDX-License-Identifier : MIT
+
+This software is distributed under the MIT License,
+the text of which is available at https://mit-license.org/
+or see the "license.txt" file for more not details.
+
+Author : Clément PARSSEGNY, Olivier LEVILLAIN
+Software description : A vulnerability reproduction tool for Debian impacting CVEs.
+It gathers details from Debian platforms and exploits from exploit-db.com in order to build and run a vulnerable
+Docker container to test and illustrate security concepts.
+"""
+
 from typing import Tuple
 
 import argparse
