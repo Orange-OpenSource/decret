@@ -1,5 +1,5 @@
 """
-Software Name : A New Expert Vulnerability Reproduction Instrument for Security and Manipulation Experiments (ANEVRISME)
+Software Name : decret (DEbian Cve REproducer Tool)
 Version : 0.1
 SPDX-FileCopyrightText : Copyright (c) 2022
 SPDX-License-Identifier : MIT
@@ -9,9 +9,10 @@ the text of which is available at https://mit-license.org/
 or see the "license.txt" file for more not details.
 
 Author : Clément PARSSEGNY, Olivier LEVILLAIN
-Software description : A vulnerability reproduction tool for Debian impacting CVEs.
-It gathers details from Debian platforms and exploits from exploit-db.com in order to build and run a vulnerable
-Docker container to test and illustrate security concepts.
+Software description : A tool to reproduce vulnerability affecting Debian
+It gathers details from the Debian metadata and exploits from exploit-db.com
+in order to build and run a vulnerable Docker container to test and
+illustrate security concepts.
 """
 
 from typing import Tuple
@@ -412,9 +413,11 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
-        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable version is not found while it is present in the
-        # repo... Because it's the wrong dist release (sometimes unstbale, sometime testing, sometime main,etc.)
-        # Should we add all of them to be sure the desired version is here ?
+        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable
+        # version is not found while it is present in the
+        # repo... Because it's the wrong dist release (sometimes
+        # unstbale, sometime testing, sometime main,etc.)  Should we
+        # add all of them to be sure the desired version is here ?
 
         # bin_name_and_version = ""
         # if item["bin_name"]:
@@ -520,7 +523,7 @@ def main():  # pragma: no cover
     cve_details = get_vuln_version(cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
 
-    print(f"Getting the hash of the package")
+    print("Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
     print(f"Source package hash : {cve_details[0]['hash']}\n\n")
 
