@@ -10,3 +10,13 @@ def bullseye_args():
         cache_main_json_file=None,
         bin_package=None,
     )
+
+
+@pytest.fixture
+def wheezy_args():
+    return Namespace(
+        version="wheezy",
+        fixed_version=None,
+        cache_main_json_file=None,
+        bin_package=None,
+    )

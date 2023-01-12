@@ -1,7 +1,9 @@
 import pytest
 from cve_debian import (
     check_program_is_present,
+    prepare_browser,
     get_cve_details_from_json,
+    get_cve_details_from_selenium,
     get_vuln_version,
     get_hash_and_bin_names,
     CVENotFound,
@@ -32,21 +34,24 @@ def test_get_cve_info_cve_2020_7247(bullseye_args):
     assert results[0]["hash"] == "e2b06347249c1aadcfff7b098951b3db75ff4fa1"
 
 
-def test_get_cve_info_cve_2014_0160(bullseye_args):
-    bullseye_args.cve_number = "2014-0160"  # Heartbleed
+def test_get_cve_info_cve_2014_0160(wheezy_args):
+    wheezy_args.cve_number = "2014-0160"  # Heartbleed
 
-    results = get_cve_details_from_json(bullseye_args)
+    wheezy_args.selenium = True
+    browser = prepare_browser()
+
+    results = get_cve_details_from_selenium(browser, wheezy_args)
     assert len(results) == 1
     assert results[0]["src_package"] == "openssl"
-    assert results[0]["release"] == "bullseye"
-    assert results[0]["fixed_version"] == "1.0.1g-1"
+    assert results[0]["release"] == "wheezy"
+    assert results[0]["fixed_version"] == "1.0.1e-2+deb7u5"
 
     results = get_vuln_version(results)
-    assert results[0]["vuln_version"] == "1.0.1f-1"
+    assert results[0]["vuln_version"] == "1.0.1e-2+deb7u4"
 
-    results = get_hash_and_bin_names(bullseye_args, results)
+    results = get_hash_and_bin_names(wheezy_args, results)
     assert results[0]["bin_name"] == ["openssl"]
-    assert results[0]["hash"] == "26772bf659ee0f9fff335b5be82a29a0a34c0143"
+    assert results[0]["hash"] == "c901977df5fe0642d232c3c7dbd616870cbd5e98"
 
 
 def test_get_cve_info_from_cached_json_file(bullseye_args):
