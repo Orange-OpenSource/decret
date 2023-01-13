@@ -1,7 +1,7 @@
 """
 Software Name : decret (DEbian Cve REproducer Tool)
 Version : 0.1
-SPDX-FileCopyrightText : Copyright (c) 2022
+SPDX-FileCopyrightText : Copyright (c) 2023 Orange
 SPDX-License-Identifier : BSD-3-Clause
 
 This software is distributed under the BSD 3-Clause "New" or "Revised" License,
@@ -416,7 +416,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable
         # version is not found while it is present in the
         # repo... Because it's the wrong dist release (sometimes
-        # unstbale, sometime testing, sometime main,etc.)  Should we
+        # unstable, sometime testing, sometime main,etc.)  Should we
         # add all of them to be sure the desired version is here ?
 
         # bin_name_and_version = ""
