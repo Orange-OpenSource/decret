@@ -447,7 +447,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         ("DEBIAN_VERSION", args.version),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
-        ("APT_FLAG", apt_flag)
+        ("APT_FLAG", apt_flag),
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(".")
