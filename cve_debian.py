@@ -389,7 +389,7 @@ def get_snapshot(cve_details: list[dict]):
     snapshot_id = []
     for item in cve_details:
         url = f"http://snapshot.debian.org/mr/file/{item['hash']}/info"
-        response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"][0]
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"][-1]
         snapshot_id.append(response["first_seen"])
 
     if not snapshot_id:
@@ -403,11 +403,12 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-        #   release = f"{args.version}"
+            release = ["testing", "stable", "unstable"]
         else:
             url = "http://deb.debian.org/debian"
-        #    release = LATEST_VERSION
-        sources_file.write(f"deb {url} unstable main\n")
+            release = [LATEST_VERSION]
+        for rel in release:
+            sources_file.write(f"deb {url} {rel} main\n")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
@@ -416,14 +417,14 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable
         # version is not found while it is present in the
         # repo... Because it's the wrong dist release (sometimes
-        # unstbale, sometime testing, sometime main,etc.)  Should we
+        # unstable, sometime testing, sometime main,etc.)  Should we
         # add all of them to be sure the desired version is here ?
 
-        # bin_name_and_version = ""
-        # if item["bin_name"]:
-        #     bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
-        # binary_packages.extend(bin_name_and_version)
-        binary_packages.extend(item["bin_name"])
+        bin_name_and_version = ""
+        if item["bin_name"]:
+            bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
+        binary_packages.extend(bin_name_and_version)
+        # binary_packages.extend(item["bin_name"])
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
