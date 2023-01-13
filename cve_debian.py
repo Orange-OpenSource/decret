@@ -30,7 +30,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
 
-DEBIAN_VERSIONS = [
+DEBIAN_RELEASES = [
     "sarge",
     "etch",
     "lenny",
@@ -42,7 +42,7 @@ DEBIAN_VERSIONS = [
     "bullseye",
 ]
 
-LATEST_VERSION = DEBIAN_VERSIONS[-1]
+LATEST_RELEASE = DEBIAN_RELEASES[-1]
 
 DEFAULT_TIMEOUT = 10
 
@@ -66,12 +66,12 @@ def arg_parsing():
         required=True,
     )
     parser.add_argument(
-        "-v",
-        "--version",
-        dest="version",
+        "-r",
+        "--release",
+        dest="release",
         type=str,
-        choices=DEBIAN_VERSIONS,
-        help="Debian Version name from 2005 to 2022",
+        choices=DEBIAN_RELEASES,
+        help="Debian Release name from 2005 to 2022",
         required=True,
     )
     parser.add_argument(
@@ -187,11 +187,11 @@ def prepare_browser():
     return webdriver.Firefox(options=options)
 
 
-def search_in_table(version: str, info_table) -> Tuple[list[dict], list[str]]:
+def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
     results = []
-    available_versions = []
+    available_releases = []
     i = 0
-    desired_version = False
+    desired_release = False
     for row in info_table.find_elements(By.XPATH, "./tr"):
         if i == 0:
             i += 1
@@ -206,8 +206,8 @@ def search_in_table(version: str, info_table) -> Tuple[list[dict], list[str]]:
                 }
             )
         else:
-            if version in data:
-                desired_version = True
+            if release in data:
+                desired_release = True
                 src_package = data[0]
                 release = data[2]
                 fixed_version = data[3]
@@ -219,16 +219,16 @@ def search_in_table(version: str, info_table) -> Tuple[list[dict], list[str]]:
                     }
                 )
             else:
-                available_versions.append(data[2])
+                available_releases.append(data[2])
         i += 1
 
     if (
-        desired_version
-    ):  # If the desired version of Debian is present, we remove the unfixed version.
+        desired_release
+    ):  # If the desired release of Debian is present, we remove the unfixed release.
         results = [
-            results[i] for i in range(len(results)) if results[i]["release"] == version
+            results[i] for i in range(len(results)) if results[i]["release"] == release
         ]
-    return results, available_versions
+    return results, available_releases
 
 
 def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dict]:
@@ -249,12 +249,12 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
                 "Selenium : Table not found. Are you connected to internet ?"
             ) from exc
 
-    results, available_versions = search_in_table(args.version, info_table)
+    results, available_releases = search_in_table(args.release, info_table)
 
     if not results:
-        versions_string = ", ".join(available_versions)
+        releases_string = ", ".join(available_releases)
         raise Exception(
-            f"Vulnerability not found for given Debian version. Try {versions_string}."
+            f"Vulnerability not found for the Debian {args.release}. Try {releases_string}."
         )
 
     return results
@@ -285,23 +285,23 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             continue
 
         cve_info = package_info[cve_id]
-        if args.version not in cve_info["releases"]:
+        if args.release not in cve_info["releases"]:
             continue
 
         if args.fixed_version:
             fixed_version = args.fixed_version
         else:
-            fixed_version = cve_info["releases"][args.version]["fixed_version"]
+            fixed_version = cve_info["releases"][args.release]["fixed_version"]
         if fixed_version == "0":
             raise CVENotFound(
-                f"Debian {args.version} was not affected by {cve_id}.\n"
-                f"Try another version."
+                f"Debian {args.release} was not affected by {cve_id}.\n"
+                f"Try another release."
                 f"(see https://security-tracker.debian.org/tracker/CVE-{args.cve_number})."
             )
         results.append(
             {
                 "src_package": package_name,
-                "release": args.version,
+                "release": args.release,
                 "fixed_version": fixed_version,
             }
         )
@@ -403,10 +403,10 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-        #   release = f"{args.version}"
+        #   release = f"{args.release}"
         else:
             url = "http://deb.debian.org/debian"
-        #    release = LATEST_VERSION
+        #    release = LATEST_RELEASE
         sources_file.write(f"deb {url} unstable main\n")
 
 
@@ -426,13 +426,13 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         binary_packages.extend(item["bin_name"])
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
-        print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
-        args.version = LATEST_VERSION
+        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
+        args.release = LATEST_RELEASE
 
     print("Building the Docker image.")
-    docker_image_name = f"{args.version}/cve-{args.cve_number}"
+    docker_image_name = f"{args.release}/cve-{args.cve_number}"
 
-    if args.version in DEBIAN_VERSIONS[:6]:
+    if args.release in DEBIAN_RELEASES[:6]:
         apt_flag = "--force-yes"
     else:
         apt_flag = "--allow-unauthenticated --allow-downgrades"
@@ -444,7 +444,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     build_cmd.extend(["docker", "build"])
     build_cmd.extend(["-t", docker_image_name])
     for arg_name, arg_value in [
-        ("DEBIAN_VERSION", args.version),
+        ("DEBIAN_RELEASE", args.release),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
         ("APT_FLAG", apt_flag),

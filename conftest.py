@@ -22,7 +22,7 @@ import pytest
 @pytest.fixture
 def bullseye_args():
     return Namespace(
-        version="bullseye",
+        release="bullseye",
         fixed_version=None,
         cache_main_json_file=None,
         bin_package=None,
@@ -32,7 +32,7 @@ def bullseye_args():
 @pytest.fixture
 def wheezy_args():
     return Namespace(
-        version="wheezy",
+        release="wheezy",
         fixed_version=None,
         cache_main_json_file=None,
         bin_package=None,

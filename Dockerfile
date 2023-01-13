@@ -1,5 +1,5 @@
-ARG DEBIAN_VERSION
-FROM debian:${DEBIAN_VERSION}
+ARG DEBIAN_RELEASE
+FROM debian:${DEBIAN_RELEASE}
 
 ARG DIRECTORY
 COPY ${DIRECTORY}/snapshot.list /etc/apt/sources.list.d/snapshot.list
