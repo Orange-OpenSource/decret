@@ -432,6 +432,9 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
 
     print("Building the Docker image.")
     docker_image_name = f"{args.version}/cve-{args.cve_number}"
+    default_packages = ["aptitude", "nano"]
+    if args.version == "wheezy":
+        default_packages.append("adduser")
 
     if args.version in DEBIAN_VERSIONS[:6]:
         apt_flag = "--force-yes"
@@ -445,6 +448,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     build_cmd.extend(["docker", "build"])
     build_cmd.extend(["-t", docker_image_name])
     for arg_name, arg_value in [
+        ("DEFAULT_PACKAGE", " ".join(default_packages)),
         ("DEBIAN_VERSION", args.version),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
