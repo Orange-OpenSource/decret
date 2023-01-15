@@ -291,7 +291,10 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         if args.fixed_version:
             fixed_version = args.fixed_version
         else:
-            fixed_version = cve_info["releases"][args.version]["fixed_version"]
+            if cve_info["releases"][args.version]["status"] == "open":
+                fixed_version = "0"
+            else:
+                fixed_version = cve_info["releases"][args.version]["fixed_version"]
         if fixed_version == "0":
             raise CVENotFound(
                 f"Debian {args.version} was not affected by {cve_id}.\n"
@@ -433,6 +436,12 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     print("Building the Docker image.")
     docker_image_name = f"{args.version}/cve-{args.cve_number}"
     default_packages = ["aptitude", "nano"]
+
+    fixed_version = ""
+    for item in cve_details:
+        for name in item["bin_name"]:
+            fixed_version = fixed_version.join(f"{name}={item['fixed_version']} ")
+
     if args.version == "wheezy":
         default_packages.append("adduser")
 
@@ -452,7 +461,8 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         ("DEBIAN_VERSION", args.version),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
-        ("APT_FLAG", apt_flag)
+        ("APT_FLAG", apt_flag),
+        ("FIXED_VERSION", fixed_version)
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(".")
