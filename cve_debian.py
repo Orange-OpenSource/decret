@@ -417,17 +417,11 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
-        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable
-        # version is not found while it is present in the
-        # repo... Because it's the wrong dist release (sometimes
-        # unstable, sometime testing, sometime main,etc.)  Should we
-        # add all of them to be sure the desired version is here ?
-
         bin_name_and_version = ""
         if item["bin_name"]:
             bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
         binary_packages.extend(bin_name_and_version)
-        # binary_packages.extend(item["bin_name"])
+
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_VERSION} container.\n\n")
@@ -440,7 +434,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     fixed_version = ""
     for item in cve_details:
         for name in item["bin_name"]:
-            fixed_version = fixed_version.join(f"{name}={item['fixed_version']} ")
+            fixed_version = fixed_version + f"{name}={item['fixed_version']} "
 
     if args.version == "wheezy":
         default_packages.append("adduser")
