@@ -292,9 +292,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             fixed_version = args.fixed_version
         else:
             if cve_info["releases"][args.release]["status"] == "open":
-                raise CVENotFound(
-                    f"This vulnerability is not fixed yet."
-                )
+                fixed_version = "(unfixed)"
             else:
                 fixed_version = cve_info["releases"][args.version]["fixed_version"]
         if fixed_version == "0":
@@ -420,11 +418,11 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
         bin_name_and_version = ""
-        if item["bin_name"]:
-            bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
-        binary_packages.extend(bin_name_and_version)
+        for bin_name in item["bin_name"]:
+            bin_name_and_version = [bin_name + f"={item['vuln_version']}"]
+            binary_packages.extend(bin_name_and_version)
 
-    packages_string = "".join(binary_packages)
+    packages_string = " ".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
         args.release = LATEST_RELEASE
@@ -438,7 +436,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
         for name in item["bin_name"]:
             fixed_version = fixed_version + f"{name}={item['fixed_version']} "
 
-    if args.version == "wheezy":
+    if args.release == "wheezy":
         default_packages.append("adduser")
 
     if args.release in DEBIAN_RELEASES[:6]:
