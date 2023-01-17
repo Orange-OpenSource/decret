@@ -294,7 +294,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             if cve_info["releases"][args.release]["status"] == "open":
                 fixed_version = "(unfixed)"
             else:
-                fixed_version = cve_info["releases"][args.version]["fixed_version"]
+                fixed_version = cve_info["releases"][args.release]["fixed_version"]
         if fixed_version == "0":
             raise CVENotFound(
                 f"Debian {args.release} was not affected by {cve_id}.\n"
