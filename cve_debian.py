@@ -254,7 +254,7 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
     if not results:
         releases_string = ", ".join(available_releases)
         raise Exception(
-            f"Vulnerability not found for the Debian {args.release}. Try {releases_string}."
+            f"Vulnerability not found for Debian {args.release}. Try {releases_string}."
         )
 
     return results
@@ -291,7 +291,12 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         if args.fixed_version:
             fixed_version = args.fixed_version
         else:
-            fixed_version = cve_info["releases"][args.release]["fixed_version"]
+            if cve_info["releases"][args.release]["status"] == "open":
+                raise CVENotFound(
+                    f"This vulnerability is not fixed yet."
+                )
+            else:
+                fixed_version = cve_info["releases"][args.version]["fixed_version"]
         if fixed_version == "0":
             raise CVENotFound(
                 f"Debian {args.release} was not affected by {cve_id}.\n"
@@ -389,7 +394,7 @@ def get_snapshot(cve_details: list[dict]):
     snapshot_id = []
     for item in cve_details:
         url = f"http://snapshot.debian.org/mr/file/{item['hash']}/info"
-        response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"][0]
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"][-1]
         snapshot_id.append(response["first_seen"])
 
     if not snapshot_id:
@@ -403,27 +408,22 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     with sources_path.open("w", encoding="utf-8") as sources_file:
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-        #   release = f"{args.release}"
+            release = ["testing", "stable", "unstable"]
         else:
             url = "http://deb.debian.org/debian"
-        #    release = LATEST_RELEASE
-        sources_file.write(f"deb {url} unstable main\n")
+            release = [LATEST_RELEASE]
+        for rel in release:
+            sources_file.write(f"deb {url} {rel} main\n")
 
 
 def docker_build_and_run(args, cve_details, vuln_fixed):
     binary_packages = []
     for item in cve_details:
-        # NOT WORKING YET (ex : 2015-5602, 2021-44228). Vulnerable
-        # version is not found while it is present in the
-        # repo... Because it's the wrong dist release (sometimes
-        # unstable, sometime testing, sometime main,etc.)  Should we
-        # add all of them to be sure the desired version is here ?
+        bin_name_and_version = ""
+        if item["bin_name"]:
+            bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
+        binary_packages.extend(bin_name_and_version)
 
-        # bin_name_and_version = ""
-        # if item["bin_name"]:
-        #     bin_name_and_version = item["bin_name"] + [f"={item['vuln_version']} "]
-        # binary_packages.extend(bin_name_and_version)
-        binary_packages.extend(item["bin_name"])
     packages_string = "".join(binary_packages)
     if not vuln_fixed:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
@@ -431,6 +431,15 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
 
     print("Building the Docker image.")
     docker_image_name = f"{args.release}/cve-{args.cve_number}"
+    default_packages = ["aptitude", "nano"]
+
+    fixed_version = ""
+    for item in cve_details:
+        for name in item["bin_name"]:
+            fixed_version = fixed_version + f"{name}={item['fixed_version']} "
+
+    if args.version == "wheezy":
+        default_packages.append("adduser")
 
     if args.release in DEBIAN_RELEASES[:6]:
         apt_flag = "--force-yes"
@@ -444,10 +453,12 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     build_cmd.extend(["docker", "build"])
     build_cmd.extend(["-t", docker_image_name])
     for arg_name, arg_value in [
+        ("DEFAULT_PACKAGE", " ".join(default_packages)),
         ("DEBIAN_RELEASE", args.release),
         ("PACKAGE_NAME", packages_string),
         ("DIRECTORY", args.dirname),
         ("APT_FLAG", apt_flag),
+        ("FIXED_VERSION", fixed_version)
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(".")
