@@ -19,9 +19,7 @@ This code is released under the terms of the BSD 3-Clause license. See the `lice
 
 ## Example
 
-Here is an example for the Pwnkit vulnerability :
-   
-`python cve_debian.py -n 2021-4034 -v bullseye -d pwnkit --selenium`
+You can find examples in the `examples` directory.
 
 
 ## Working principle
