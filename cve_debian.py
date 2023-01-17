@@ -46,6 +46,8 @@ LATEST_RELEASE = DEBIAN_RELEASES[-1]
 
 DEFAULT_TIMEOUT = 10
 
+DOCKER_SHARED_DIR = '/tmp/decret'
+
 
 class FatalError(BaseException):
     pass
@@ -466,14 +468,14 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     except subprocess.CalledProcessError as exc:
         raise FatalError("Error while building the container") from exc
 
-    print("Running the Docker. The shared directory is '/tmp/anevrisme'.")
+    print(f"Running the Docker. The shared directory is '{DOCKER_SHARED_DIR}'.")
 
     if args.do_not_use_sudo:
         run_cmd = []
     else:
         run_cmd = ["sudo"]
     run_cmd.extend(["docker", "run", "--privileged", "-it", "--rm"])
-    run_cmd.extend(["-v", f"{args.directory.absolute()}:/tmp/anevrisme"])
+    run_cmd.extend(["-v", f"{args.directory.absolute()}:{DOCKER_SHARED_DIR}"])
     run_cmd.extend(["-h", f"cve-{args.cve_number}"])
     run_cmd.extend(["--name", f"cve-{args.cve_number}"])
     if args.port:
