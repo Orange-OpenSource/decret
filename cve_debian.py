@@ -409,37 +409,22 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
         if vuln_fixed:
             url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
             release = ["testing", "stable", "unstable"]
-        else:
-            url = "http://deb.debian.org/debian"
-            release = [LATEST_RELEASE]
         for rel in release:
             sources_file.write(f"deb {url} {rel} main\n")
 
 
-def docker_build_and_run(args, cve_details, vuln_fixed):
+def docker_build_and_run(args, cve_details):
     binary_packages = []
+    fixed_version = ""
     for item in cve_details:
-        bin_name_and_version = ""
         for bin_name in item["bin_name"]:
             bin_name_and_version = [bin_name + f"={item['vuln_version']}"]
             binary_packages.extend(bin_name_and_version)
-
-    packages_string = " ".join(binary_packages)
-    if not vuln_fixed:
-        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
-        args.release = LATEST_RELEASE
+            fixed_version = fixed_version + f"{bin_name}={item['fixed_version']} "
 
     print("Building the Docker image.")
     docker_image_name = f"{args.release}/cve-{args.cve_number}"
-    default_packages = ["aptitude", "nano"]
-
-    fixed_version = ""
-    for item in cve_details:
-        for name in item["bin_name"]:
-            fixed_version = fixed_version + f"{name}={item['fixed_version']} "
-
-    if args.release == "wheezy":
-        default_packages.append("adduser")
+    default_packages = ["aptitude", "nano", "adduser"]
 
     if args.release in DEBIAN_RELEASES[:6]:
         apt_flag = "--force-yes"
@@ -455,7 +440,7 @@ def docker_build_and_run(args, cve_details, vuln_fixed):
     for arg_name, arg_value in [
         ("DEFAULT_PACKAGE", " ".join(default_packages)),
         ("DEBIAN_RELEASE", args.release),
-        ("PACKAGE_NAME", packages_string),
+        ("PACKAGE_NAME", " ".join(binary_packages)),
         ("DIRECTORY", args.dirname),
         ("APT_FLAG", apt_flag),
         ("FIXED_VERSION", fixed_version)
@@ -551,7 +536,11 @@ def main():  # pragma: no cover
             browser.quit()
 
     write_sources(args, snapshot_id, vuln_fixed)
-    docker_build_and_run(args, cve_details, vuln_fixed)
+    if not vuln_fixed:
+        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
+        args.release = LATEST_RELEASE
+
+    docker_build_and_run(args, cve_details)
 
 
 if __name__ == "__main__":  # pragma: no cover
