@@ -16,7 +16,7 @@ illustrate security concepts.
 """
 
 import pytest
-from cve_debian import (
+from decret import (
     check_program_is_present,
     prepare_browser,
     get_cve_details_from_json,
