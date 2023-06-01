@@ -321,7 +321,7 @@ def get_vuln_version(cve_details: list[dict]) -> list[dict]:
     for item in cve_details:
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/"
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
-        known_versions = [x["version"] for x in response]
+        known_versions = [x["version"] for x in response if "~bpo" not in x["version"]]
         if item["fixed_version"] == "(unfixed)":
             item["vuln_version"] = known_versions[0]  # We select the latest version
         else:
