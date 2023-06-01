@@ -10,4 +10,7 @@ RUN apt-get install -y ${APT_FLAG} --fix-missing ${DEFAULT_PACKAGE} || (printf "
 
 ARG PACKAGE_NAME APT_FLAG FIXED_VERSION
 RUN DEBIAN_FRONTEND=non-interactive aptitude -y --allow-untrusted -o Aptitude::ProblemResolver::SolutionCost='100*canceled-actions,200*removals' install ${PACKAGE_NAME} || (echo "\n\n /!\\ WARNING /!\\ \n\nThe vulnerable packages could not be installed. Please provide the bin-package name with '-p' option (see -h for help).\nCheck also that you are using the right Debian version.\nFinally, you can try to add an other version, older than ${FIXED_VERSION}, by running the command : apt-cache policy package_name\nThen install the desired version with :  aptitude install package_name=version\n\n /!\\ WARNING /!\\ \n\n" >&2)
-RUN adduser --gecos "To To, 42, 4242, 4242" --disabled-password toto
+
+ARG USERNAME=toto
+ARG PASSWORD=toto
+RUN useradd -m ${USERNAME} && printf "${PASSWORD}\n${PASSWORD}\n" | passwd ${USERNAME} 2> /dev/null
