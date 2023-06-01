@@ -413,6 +413,14 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
             sources_file.write(f"deb {url} {rel} main\n")
 
 
+def write_dockerfile(args: argparse.Namespace):
+    target_dockerfile = args.directory / "Dockerfile"
+    decret_rootpath = Path(__file__).resolve().parent
+    src_dockerfile = decret_rootpath / "Dockerfile.template"
+    target_dockerfile.write_bytes(src_dockerfile.read_bytes())
+
+
+
 def docker_build_and_run(args, cve_details):
     binary_packages = []
     fixed_version = ""
@@ -441,12 +449,11 @@ def docker_build_and_run(args, cve_details):
         ("DEFAULT_PACKAGE", " ".join(default_packages)),
         ("DEBIAN_RELEASE", args.release),
         ("PACKAGE_NAME", " ".join(binary_packages)),
-        ("DIRECTORY", args.dirname),
         ("APT_FLAG", apt_flag),
         ("FIXED_VERSION", fixed_version)
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
-    build_cmd.append(".")
+    build_cmd.append(args.dirname)
 
     try:
         subprocess.run(build_cmd, check=True)
@@ -540,6 +547,7 @@ def main():  # pragma: no cover
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
         args.release = LATEST_RELEASE
 
+    write_dockerfile(args)
     docker_build_and_run(args, cve_details)
 
 

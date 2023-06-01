@@ -1,8 +1,7 @@
 ARG DEBIAN_RELEASE
 FROM debian:${DEBIAN_RELEASE}
 
-ARG DIRECTORY
-COPY ${DIRECTORY}/snapshot.list /etc/apt/sources.list.d/snapshot.list
+COPY snapshot.list /etc/apt/sources.list.d/snapshot.list
 
 ARG DEFAULT_PACKAGE APT_FLAG
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true -o Acquire::AllowDowngradeToInsecureRepositories=true update || true
