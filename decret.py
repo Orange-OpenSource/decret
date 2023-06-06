@@ -104,6 +104,12 @@ def arg_parsing():
         help="Port forwarding between the Docker and the host",
     )
     parser.add_argument(
+        "--host-port",
+        dest="host_port",
+        type=int,
+        help="Specify the host port in case of port forwarding (default is the value given with --port)",
+    )
+    parser.add_argument(
         "-s",
         "--selenium",
         dest="selenium",
@@ -471,7 +477,10 @@ def docker_build_and_run(args, cve_details):
     run_cmd.extend(["-h", f"cve-{args.cve_number}"])
     run_cmd.extend(["--name", f"cve-{args.cve_number}"])
     if args.port:
-        run_cmd.extend(["-p" f"{args.port}:{args.port}"])
+        if args.host_port:
+            run_cmd.extend(["-p" f"{args.host_port}:{args.port}"])
+        else:
+            run_cmd.extend(["-p" f"{args.port}:{args.port}"])
     run_cmd.append(docker_image_name)
 
     try:
