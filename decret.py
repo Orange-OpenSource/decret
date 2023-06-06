@@ -46,7 +46,7 @@ LATEST_RELEASE = DEBIAN_RELEASES[-1]
 
 DEFAULT_TIMEOUT = 10
 
-DOCKER_SHARED_DIR = '/tmp/decret'
+DOCKER_SHARED_DIR = "/tmp/decret"
 
 
 class FatalError(BaseException):
@@ -450,7 +450,7 @@ def docker_build_and_run(args, cve_details):
         ("DEBIAN_RELEASE", args.release),
         ("PACKAGE_NAME", " ".join(binary_packages)),
         ("APT_FLAG", apt_flag),
-        ("FIXED_VERSION", fixed_version)
+        ("FIXED_VERSION", fixed_version),
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
     build_cmd.append(args.dirname)
