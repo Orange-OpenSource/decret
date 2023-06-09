@@ -128,6 +128,18 @@ def arg_parsing():
         type=str,
         help="Path to load/save https://security-tracker.debian.org/tracker/data/json",
     )
+    parser.add_argument(
+        "--run-lines",
+        dest="run_lines",
+        nargs="*",
+        help="Add RUN lines to execute commands to finalize the environment",
+    )
+    parser.add_argument(
+        "--cmd-line",
+        dest="cmd_line",
+        type=str,
+        help="Change the CMD line to specify the command to run by default in the container",
+    )
 
     args = parser.parse_args()
 
@@ -423,8 +435,17 @@ def write_dockerfile(args: argparse.Namespace):
     target_dockerfile = args.directory / "Dockerfile"
     decret_rootpath = Path(__file__).resolve().parent
     src_dockerfile = decret_rootpath / "Dockerfile.template"
-    target_dockerfile.write_bytes(src_dockerfile.read_bytes())
-
+    dockerfile_content = [src_dockerfile.read_bytes()]
+    print(args.run_lines)
+    if args.run_lines:
+        dockerfile_content.append(b"")
+        for line in args.run_lines:
+            dockerfile_content.append(("RUN " + line).encode("UTF-8"))
+    if args.cmd_line:
+        dockerfile_content.append(b"")
+        dockerfile_content.append(("CMD " + args.cmd_line).encode("UTF-8"))
+        dockerfile_content.append(b"")
+    target_dockerfile.write_bytes(b"\n".join(dockerfile_content))
 
 
 def docker_build_and_run(args, cve_details):
