@@ -421,6 +421,20 @@ def get_snapshot(cve_details: list[dict]):
     return snapshot_id
 
 
+def write_cmdline(args: argparse.Namespace):
+    cmdline_path = args.directory / "cmdline"
+    with cmdline_path.open("w", encoding="utf-8") as cmdline_file:
+        args_to_write = []
+        for arg in sys.argv:
+            if ' ' in arg:
+                arg = arg.replace(r'\\', r'\\')
+                arg = arg.replace(r'"', r'\"')
+                arg = f"\"{arg}\""
+            args_to_write.append(arg)
+        cmdline_file.write(" ".join(args_to_write))
+        cmdline_file.write("\n")
+
+
 def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     sources_path = args.directory / "snapshot.list"
     with sources_path.open("w", encoding="utf-8") as sources_file:
@@ -578,6 +592,7 @@ def main():  # pragma: no cover
         args.release = LATEST_RELEASE
 
     write_dockerfile(args)
+    write_cmdline(args)
     docker_build_and_run(args, cve_details)
 
 
