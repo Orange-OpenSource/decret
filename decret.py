@@ -107,7 +107,7 @@ def arg_parsing(args=None):
         "--host-port",
         dest="host_port",
         type=int,
-        help="Specify the host port in case of port forwarding (default is the value given with --port)",
+        help="Set the host port in case of port forwarding (default is the --port value)",
     )
     parser.add_argument(
         "-s",
@@ -426,10 +426,10 @@ def write_cmdline(args: argparse.Namespace):
     with cmdline_path.open("w", encoding="utf-8") as cmdline_file:
         args_to_write = []
         for arg in sys.argv:
-            if ' ' in arg:
-                arg = arg.replace(r'\\', r'\\')
-                arg = arg.replace(r'"', r'\"')
-                arg = f"\"{arg}\""
+            if " " in arg:
+                arg = arg.replace(r"\\", r"\\")
+                arg = arg.replace(r'"', r"\"")
+                arg = f'"{arg}"'
             args_to_write.append(arg)
         cmdline_file.write(" ".join(args_to_write))
         cmdline_file.write("\n")
@@ -462,7 +462,7 @@ def write_dockerfile(args: argparse.Namespace):
     target_dockerfile.write_bytes(b"\n".join(dockerfile_content))
 
 
-def docker_build_and_run(args, cve_details):
+def build_docker(args, cve_details):
     binary_packages = []
     fixed_version = ""
     for item in cve_details:
@@ -501,6 +501,8 @@ def docker_build_and_run(args, cve_details):
     except subprocess.CalledProcessError as exc:
         raise FatalError("Error while building the container") from exc
 
+def run_docker(args):
+    docker_image_name = f"{args.release}/cve-{args.cve_number}"
     print(f"Running the Docker. The shared directory is '{DOCKER_SHARED_DIR}'.")
 
     if args.do_not_use_sudo:
@@ -593,7 +595,8 @@ def main():  # pragma: no cover
 
     write_dockerfile(args)
     write_cmdline(args)
-    docker_build_and_run(args, cve_details)
+    build_docker(args, cve_details)
+    run_docker(args)
 
 
 if __name__ == "__main__":  # pragma: no cover

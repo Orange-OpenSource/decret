@@ -1,6 +1,7 @@
 import pytest
 from decret import arg_parsing, FatalError
 
+
 def test_args():
     args = arg_parsing("-n 2020-7247 -r bullseye".split())
     assert args.cve_number == "2020-7247"
