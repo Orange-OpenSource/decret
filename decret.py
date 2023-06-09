@@ -57,7 +57,7 @@ class CVENotFound(BaseException):
     pass
 
 
-def arg_parsing():
+def arg_parsing(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-n",
@@ -141,13 +141,13 @@ def arg_parsing():
         help="Change the CMD line to specify the command to run by default in the container",
     )
 
-    args = parser.parse_args()
+    namespace = parser.parse_args(args)
 
-    if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", args.cve_number):
+    if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", namespace.cve_number):
         parser.print_usage(sys.stderr)
         raise FatalError("Wrong CVE format.")
 
-    return args
+    return namespace
 
 
 def check_program_is_present(progname, cmdline):
