@@ -44,11 +44,11 @@ def test_get_cve_info_cve_2020_7247(bullseye_args):
     assert results[0]["fixed_version"] == "6.6.2p1-1"
 
     results = get_vuln_version(results)
-    assert results[0]["vuln_version"] == "6.6.2p1-1~bpo10+1"
+    assert results[0]["vuln_version"] == "6.6.1p1-5"
 
     results = get_hash_and_bin_names(bullseye_args, results)
     assert results[0]["bin_name"] == ["opensmtpd"]
-    assert results[0]["hash"] == "e2b06347249c1aadcfff7b098951b3db75ff4fa1"
+    assert results[0]["hash"] == "891032fa1a1d0c28001a616a684a0c66f0ea62d9"
 
 
 def test_get_cve_info_cve_2014_0160(wheezy_args):

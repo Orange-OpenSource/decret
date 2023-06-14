@@ -24,7 +24,6 @@ test-python3.9:
         image: python:3.9
         script:
                 - apt-get update && apt-get install -y --no-install-recommends firefox-esr
-                - test-material/get-geckodriver.sh
                 - PATH="$PWD/test-material:$PATH"
                 - pip install -r requirements.txt
                 - pytest --cov=. --cov-fail-under=50 *.py
@@ -35,7 +34,6 @@ test-python3.10:
         image: python:3.10
         script:
                 - apt-get update && apt-get install -y --no-install-recommends firefox-esr
-                - test-material/get-geckodriver.sh
                 - PATH="$PWD/test-material:$PATH"
                 - pip install -r requirements.txt
                 - pytest --cov=. --cov-fail-under=50 *.py
@@ -46,7 +44,6 @@ test-python3.11:
         image: python:3.11
         script:
                 - apt-get update && apt-get install -y --no-install-recommends firefox-esr
-                - test-material/get-geckodriver.sh
                 - PATH="$PWD/test-material:$PATH"
                 - pip install -r requirements.txt
                 - pytest --cov=. --cov-fail-under=50 *.py

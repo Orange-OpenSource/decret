@@ -46,7 +46,7 @@ LATEST_RELEASE = DEBIAN_RELEASES[-1]
 
 DEFAULT_TIMEOUT = 10
 
-DOCKER_SHARED_DIR = '/tmp/decret'
+DOCKER_SHARED_DIR = "/tmp/decret"
 
 
 class FatalError(BaseException):
@@ -57,7 +57,7 @@ class CVENotFound(BaseException):
     pass
 
 
-def arg_parsing():
+def arg_parsing(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-n",
@@ -104,6 +104,12 @@ def arg_parsing():
         help="Port forwarding between the Docker and the host",
     )
     parser.add_argument(
+        "--host-port",
+        dest="host_port",
+        type=int,
+        help="Set the host port in case of port forwarding (default is the --port value)",
+    )
+    parser.add_argument(
         "-s",
         "--selenium",
         dest="selenium",
@@ -122,14 +128,26 @@ def arg_parsing():
         type=str,
         help="Path to load/save https://security-tracker.debian.org/tracker/data/json",
     )
+    parser.add_argument(
+        "--run-lines",
+        dest="run_lines",
+        nargs="*",
+        help="Add RUN lines to execute commands to finalize the environment",
+    )
+    parser.add_argument(
+        "--cmd-line",
+        dest="cmd_line",
+        type=str,
+        help="Change the CMD line to specify the command to run by default in the container",
+    )
 
-    args = parser.parse_args()
+    namespace = parser.parse_args(args)
 
-    if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", args.cve_number):
+    if not re.match(r"^2\d{3}-(0\d{3}|[1-9]\d{3,})$", namespace.cve_number):
         parser.print_usage(sys.stderr)
         raise FatalError("Wrong CVE format.")
 
-    return args
+    return namespace
 
 
 def check_program_is_present(progname, cmdline):
@@ -321,7 +339,7 @@ def get_vuln_version(cve_details: list[dict]) -> list[dict]:
     for item in cve_details:
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/"
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
-        known_versions = [x["version"] for x in response]
+        known_versions = [x["version"] for x in response if "~bpo" not in x["version"]]
         if item["fixed_version"] == "(unfixed)":
             item["vuln_version"] = known_versions[0]  # We select the latest version
         else:
@@ -403,6 +421,20 @@ def get_snapshot(cve_details: list[dict]):
     return snapshot_id
 
 
+def write_cmdline(args: argparse.Namespace):
+    cmdline_path = args.directory / "cmdline"
+    with cmdline_path.open("w", encoding="utf-8") as cmdline_file:
+        args_to_write = []
+        for arg in sys.argv:
+            if " " in arg:
+                arg = arg.replace(r"\\", r"\\")
+                arg = arg.replace(r'"', r"\"")
+                arg = f'"{arg}"'
+            args_to_write.append(arg)
+        cmdline_file.write(" ".join(args_to_write))
+        cmdline_file.write("\n")
+
+
 def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
     sources_path = args.directory / "snapshot.list"
     with sources_path.open("w", encoding="utf-8") as sources_file:
@@ -413,7 +445,24 @@ def write_sources(args: argparse.Namespace, snapshot_id: str, vuln_fixed: bool):
             sources_file.write(f"deb {url} {rel} main\n")
 
 
-def docker_build_and_run(args, cve_details):
+def write_dockerfile(args: argparse.Namespace):
+    target_dockerfile = args.directory / "Dockerfile"
+    decret_rootpath = Path(__file__).resolve().parent
+    src_dockerfile = decret_rootpath / "Dockerfile.template"
+    dockerfile_content = [src_dockerfile.read_bytes()]
+    print(args.run_lines)
+    if args.run_lines:
+        dockerfile_content.append(b"")
+        for line in args.run_lines:
+            dockerfile_content.append(("RUN " + line).encode("UTF-8"))
+    if args.cmd_line:
+        dockerfile_content.append(b"")
+        dockerfile_content.append(("CMD " + args.cmd_line).encode("UTF-8"))
+        dockerfile_content.append(b"")
+    target_dockerfile.write_bytes(b"\n".join(dockerfile_content))
+
+
+def build_docker(args, cve_details):
     binary_packages = []
     fixed_version = ""
     for item in cve_details:
@@ -441,18 +490,19 @@ def docker_build_and_run(args, cve_details):
         ("DEFAULT_PACKAGE", " ".join(default_packages)),
         ("DEBIAN_RELEASE", args.release),
         ("PACKAGE_NAME", " ".join(binary_packages)),
-        ("DIRECTORY", args.dirname),
         ("APT_FLAG", apt_flag),
-        ("FIXED_VERSION", fixed_version)
+        ("FIXED_VERSION", fixed_version),
     ]:
         build_cmd.extend(["--build-arg", f"{arg_name}={arg_value}"])
-    build_cmd.append(".")
+    build_cmd.append(args.dirname)
 
     try:
         subprocess.run(build_cmd, check=True)
     except subprocess.CalledProcessError as exc:
         raise FatalError("Error while building the container") from exc
 
+def run_docker(args):
+    docker_image_name = f"{args.release}/cve-{args.cve_number}"
     print(f"Running the Docker. The shared directory is '{DOCKER_SHARED_DIR}'.")
 
     if args.do_not_use_sudo:
@@ -464,7 +514,10 @@ def docker_build_and_run(args, cve_details):
     run_cmd.extend(["-h", f"cve-{args.cve_number}"])
     run_cmd.extend(["--name", f"cve-{args.cve_number}"])
     if args.port:
-        run_cmd.extend(["-p" f"{args.port}:{args.port}"])
+        if args.host_port:
+            run_cmd.extend(["-p" f"{args.host_port}:{args.port}"])
+        else:
+            run_cmd.extend(["-p" f"{args.port}:{args.port}"])
     run_cmd.append(docker_image_name)
 
     try:
@@ -540,7 +593,10 @@ def main():  # pragma: no cover
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
         args.release = LATEST_RELEASE
 
-    docker_build_and_run(args, cve_details)
+    write_dockerfile(args)
+    write_cmdline(args)
+    build_docker(args, cve_details)
+    run_docker(args)
 
 
 if __name__ == "__main__":  # pragma: no cover
