@@ -28,7 +28,7 @@ pip-audit==2.4.10
 pip-requirements-parser==32.0.1
 platformdirs==2.6.0
 pluggy==1.0.0
-Pygments==2.13.0
+Pygments==2.15.0
 pylint==2.15.9
 pyparsing==3.0.9
 PySocks==1.7.1
