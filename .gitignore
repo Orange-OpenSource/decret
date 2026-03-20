@@ -1,0 +1,9 @@
+geckodriver.log
+venv
+*.pyc
+*~
+.coverage
+__pycache__
+cve-*-*
+.idea
+default

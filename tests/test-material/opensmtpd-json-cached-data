@@ -1,0 +1,44 @@
+{
+  "opensmtpd": {
+    "CVE-2020-7247": {
+      "description": "smtp_mailaddr in smtp_session.c in OpenSMTPD 6.6, as used in OpenBSD 6.6 and other products, allows remote attackers to execute arbitrary commands as root via a crafted SMTP session, as demonstrated by shell metacharacters in a MAIL FROM field. This affects the \"uncommented\" default configuration. The issue exists because of an incorrect return value upon failure of input validation.",
+      "debianbug": 950121,
+      "scope": "local",
+      "releases": {
+        "bookworm": {
+          "status": "resolved",
+          "repositories": {
+            "bookworm": "6.8.0p2-4"
+          },
+          "fixed_version": "6.6.2p1-1",
+          "urgency": "not yet assigned"
+        },
+        "bullseye": {
+          "status": "resolved",
+          "repositories": {
+            "bullseye": "6.8.0p2-3"
+          },
+          "fixed_version": "6.6.2p1-1",
+          "urgency": "not yet assigned"
+        },
+        "buster": {
+          "status": "resolved",
+          "repositories": {
+            "buster": "6.0.3p1-5+deb10u4",
+            "buster-security": "6.0.3p1-5+deb10u4"
+          },
+          "fixed_version": "6.0.3p1-5+deb10u3",
+          "urgency": "not yet assigned"
+        },
+        "sid": {
+          "status": "resolved",
+          "repositories": {
+            "sid": "6.8.0p2-4"
+          },
+          "fixed_version": "6.6.2p1-1",
+          "urgency": "not yet assigned"
+        }
+      }
+    }
+  }
+}
