@@ -126,19 +126,15 @@ def run_decret_CVE(name_cve, name_release):
             )
             
             log.write(result.stdout)
-            # If an Error occurs we display the error nature in the STDERR section.
-            if result.stderr.strip(): 
-                log.write("\n=== STDERR ===\n")
+            if result.stderr.strip():
                 log.write(result.stderr)
             log.write(f"\n=== Return code: {result.returncode} ===\n")
-            status = "error"
             if os.path.exists(dockerfile_generated) and result.returncode == 0:
                 status = "functional"
                 print(f"[OK] {name_cve} ({name_release}): Dockerfile generated.")
             else:
                 status = "error"
                 print(f"[ERROR] {name_cve} ({name_release}): Execution failed or Dockerfile missing.")
-           
             with open(status_path, 'w') as s:
                 s.write(status + '\n')
 
