@@ -5,7 +5,7 @@ This tool reproduces a vulnerable Debian environment for a given CVE number.
 
 ## License 
 
-Copyright (c) 2023-2025 Orange
+Copyright (c) 2023-2026 Orange
 This code is released under the terms of the BSD 3-Clause license. See the `license.txt` file for more information.
 
 
@@ -79,6 +79,41 @@ pytest
 ```
 5. Verify your code passes CI tests under `.github/workflows`
 6. Open pull request
+
+## Automated testing
+To test if CVEs are functional in `DECRET`, you can use the automated script as follows:
+
+### Step 1: Prepare your configuration file
+- Create a text file (e.g., decret_auto.txt) listing the CVEs and, optionally, the releases to test.
+- Syntax example:
+
+```bash
+2025-45765: trixie, bullseye
+2022-43995
+```
+If no release is specified, the script will use the 4 default releases.
+
+### Step 2: Run the automated test script
+- Execute the following command:
+```bash
+python3 decret_auto.py decret_auto.txt
+```
+- This script will test each CVE by release from the configuration file and check if DECRET generates a valid Dockerfile for each (status file).
+
+### Troubleshooting
+If you encounter errors related to the Python environment or venv, do not delete the venv folder. Instead, clean up Python cache files and reactivate the environment:  
+```bash 
+find venv/ -name "*.pyc" -delete
+find venv/ -name "__pycache__" -type d -exec rm -r {} +
+deactivate
+source venv/bin/activate
+pip install -r requirements-minimal.txt
+```
+- The script may take some time to complete, depending on the number of CVEs and releases tested.
+
+### Additional notes
+- Make sure to respect the configuration file syntax.
+- For more details, refer to the source code and comments in decret_auto.py.
 
 ## Working principle
 
