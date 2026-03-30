@@ -96,9 +96,9 @@ If no releases are specified for a CVE, all 4 latest releases will be tested aut
 2022-43995
 ```
 ### Step 2: Run the automated test script
-- Execute the following command:
+- To run the tests, execute the following command:
 ```bash
-python3 decret_auto.py decret_auto.txt
+python3 decret_auto/decret_auto.py decret_auto/decret_auto.txt
 ```
 - This script will test each CVE by release from the configuration file and check if `DECRET` generates a valid Dockerfile for each (status file).
 - The script may take some time to complete, depending on the number of CVEs and releases tested.
@@ -108,7 +108,7 @@ If you encounter any issues, please refer to the [Troubleshooting Journal](./TRO
 
 ### Additional notes
 - Make sure to respect the configuration file syntax.  
-- For more details, refer to the source code and comments in `decret_auto.py`.
+- For more details, refer to the source code and comments in `decret_auto/decret_auto.py`.
 
 ## Working principle
 
