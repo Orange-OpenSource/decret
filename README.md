@@ -80,6 +80,13 @@ pytest
 5. Verify your code passes CI tests under `.github/workflows`
 6. Open pull request
 
+### Troubleshooting
+If you encounter any issues, please refer to the [Troubleshooting Journal](./TROUBLESHOOTING.md) for solutions.
+
+### Additional notes
+- Make sure to respect the configuration file syntax.  
+- For more details, refer to the source code and comments in `decret_auto/decret_auto.py`.
+
 ## Working principle
 
 ![](./img/reproduction_implementation.png)
