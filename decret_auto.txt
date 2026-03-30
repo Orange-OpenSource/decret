@@ -1,6 +1,0 @@
-2020-24584: trixie, buster, bullseye
-2017-5932: buster, trixie, bullseye
-2024-56406: trixie, buster, bullseye
-2025-45765: trixie, bullseye, bookworm
-2022-43995
-2021-33910: trixie
