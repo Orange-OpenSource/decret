@@ -85,35 +85,30 @@ To test if CVEs are functional in `DECRET`, you can use the automated script as 
 
 ### Step 1: Prepare your configuration file
 - Create a text file (e.g., decret_auto.txt) listing the CVEs and, optionally, the releases to test.
+- By default, the script uses the 4 latest Debian releases: `trixie`, `bookworm`, `bullseye`, and `buster`.  
+If you want, you can specify of these releases, one or more, for each CVE in the configuration file.  
+If no releases are specified for a CVE, all 4 latest releases will be tested automatically.  
 - Syntax example:
 
 ```bash
 2025-45765: trixie, bullseye
+2015-5602: trixie, bookworm, bullseye, buster
 2022-43995
 ```
-If no release is specified, the script will use the 4 default releases.
-
 ### Step 2: Run the automated test script
 - Execute the following command:
 ```bash
 python3 decret_auto.py decret_auto.txt
 ```
-- This script will test each CVE by release from the configuration file and check if DECRET generates a valid Dockerfile for each (status file).
-
-### Troubleshooting
-If you encounter errors related to the Python environment or venv, do not delete the venv folder. Instead, clean up Python cache files and reactivate the environment:  
-```bash 
-find venv/ -name "*.pyc" -delete
-find venv/ -name "__pycache__" -type d -exec rm -r {} +
-deactivate
-source venv/bin/activate
-pip install -r requirements-minimal.txt
-```
+- This script will test each CVE by release from the configuration file and check if `DECRET` generates a valid Dockerfile for each (status file).
 - The script may take some time to complete, depending on the number of CVEs and releases tested.
 
+### Troubleshooting
+If you encounter any issues, please refer to the [Troubleshooting Journal](./TROUBLESHOOTING.md) for solutions.
+
 ### Additional notes
-- Make sure to respect the configuration file syntax.
-- For more details, refer to the source code and comments in decret_auto.py.
+- Make sure to respect the configuration file syntax.  
+- For more details, refer to the source code and comments in `decret_auto.py`.
 
 ## Working principle
 
