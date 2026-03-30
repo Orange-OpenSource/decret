@@ -18,7 +18,7 @@ Instead, clean up your Firefox installation and make sure you’re using the cor
 sudo snap remove firefox
 sudo apt update
 sudo apt install firefox-esr
-snap list | grep firefox   # Should return nothing
+snap list | grep firefox # Should display nothing...
 apt list --installed | grep firefox
 ```  
 
