@@ -1,3 +1,19 @@
+"""
+Software Name : decret_auto
+Version : 0.1
+SPDX-FileCopyrightText : Copyright (c) 2023-2026 Orange
+SPDX-License-Identifier : BSD-3-Clause
+
+This software is distributed under the BSD 3-Clause "New" or "Revised" License,
+the text of which is available at https://opensource.org/licenses/BSD-3-Clause
+or see the "license.txt" file for more not details.
+
+Author: CHAKER Zakaria, Nicolas DEJON
+Software Descritpion : This script is designed to automatically test the DECRET tool by running it on a list of Debian CVEs for different releases.
+For each CVE and release, it checks if DECRET can successfully generate a valid Dockerfile and reports the result.
+The main goal is to evaluate the functionality of DECRET, identify errors or unexpected behaviors, and help improve the tool.
+"""
+
 import os
 import socket
 import shutil
@@ -5,21 +21,6 @@ import subprocess
 from datetime import datetime
 import concurrent.futures
 import sys
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------------- 
-# Author: CHAKER Zakaria
-# Description:
-#   This script automates the classification of CVEs and the generation of associated Dockerfiles.
-#   It uses the DECRET tool to determine, for each provided Debian CVE, whether a complete Dockerfile can be constructed.
-#   CVEs are classified automatically: if the Dockerfile is built without error, the CVE is considered functional for DECRET.
-#   This version can be improved by adding more exception handling and advanced checks.
-#   ---
-#   Ce script a pour but d'automatiser la classification des CVEs et la génération des Dockerfiles associés à chaque CVE (en plus d'autres fichiers utiles à leur analyse).
-#   Nous utiliserons DECRET pour cette classification qui determinera, en fonction des CVEs DEBIAN entrées, celles qui amèneront à la construction complète d'un Dockerfile valide. 
-#   Et donc indirectement celles qui permetteront de générer un conteneur...
-#   Cette version peut être ameliorée: en ajoutant des vérifications supplémentaires (exceptions et optimisations liées à la complexité du script).
-# Version: 1.0
-# --------------------------------------------------------------------------------------------------------------------------------------------------------- 
 
 def check_internet_state():
     """
@@ -45,72 +46,91 @@ def parse_cve_file(filename):
     Each line should be formatted as: 
         - XXXX-YYYY: release1, release2, ...
         - CVE-XXXX-YYYY: release1, release2, release3, ...
-    If no release is specified (empty after ':' or no ':'), uses 4 default releases.
+    If no release is specified (empty after ':' or no ':'), uses 4 default releases:
+        `trixie`, `bookworm`, `bullseye` and `buster`.
     Empty lines are ignored.
     Args:
         filename (str): Path to the configuration file.
     Returns:
         dict: Dictionary mapping each CVE to a list of releases.
+    Raises: 
+        FileNotFoundError: If the configuration file does not exist.
+        Exception: If a release specified in the file is not in the 4 supported releases
     """
     DEFAULT_RELEASES = ["trixie", "bookworm", "bullseye", "buster"]
     cve_dict = {}
-    with open(filename, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if ":" in line:
-                cve, releases = line.split(":", 1)
-                cve = cve.strip()
-                releases_list = [r.strip() for r in releases.split(",") if r.strip()]
-                if not releases_list:
-                    releases_list = DEFAULT_RELEASES.copy()
-                cve_dict[cve] = releases_list
-            else:
-                cve = line.strip()
-                if cve:
-                    cve_dict[cve] = DEFAULT_RELEASES.copy()
+
+    try:
+        with open(filename, "r") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line :
+                    continue
+                if ":" in line:
+                    cve, releases = line.split(":", 1)
+                    cve = cve.strip()
+                    releases_list = [r.strip() for r in releases.split(",") if r.strip()]
+                    if not releases_list:
+                        releases_list = DEFAULT_RELEASES.copy()
+                    for release in releases_list:
+                        if release not in DEFAULT_RELEASES:
+                            f"Invalid release '{release}' for CVE '{CVE}' on L.{line_num}."  
+                            f"Supported releases are: {', '.join(DEFAULT_RELEASES)}!" 
+                    cve_dict[cve] = releases_list
+                else:
+                    cve = line.strip()
+                    if cve:
+                        cve_dict[cve] = DEFAULT_RELEASES.copy()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Exception catched, configuration file not found...")
+    except Exception as error:
+        raise RuntimeError(f"Error occurs during parsing the configuration file: {error}")
     return cve_dict
 
 def run_decret_CVE(name_cve, name_release):
     """
-    For a given cve and release its run the Decret tool with the mode --dont-run.
-    For each running, creates directorites by CVE and subdirectories by release.
-    For example:
-       /
-       |_CVE-2015-xxxx
-       | |_trixie
-       |_CVE-2014-xxxx
-         |_bullseye
-         |_buster
-    For each release, it generates 4 files (logfile, Dockerfile (if CVE available), cmdline and status).
-    If a complete Dockerfile is generated and the return code is 0, the CVE is considered functional.
+    Runs the DECRET tool for a given CVE and Debian release in '--dont-run' mode.
+     For each run, directories are created in an 'out/' subfolder, organized by CVE and then by release, for example:
+        out/
+        |__CVE-2015-xxxx/
+        |   |__trixie/
+        |__CVE-2014-xxxx/
+            |__bullseye/
+            |__buster/
+
+    For each release, the script generates up 4 files: logfile, Dockerfile (if available), cmdline and status.
+    If a complete Dockerfile is generated and the return code is 0, the container is considered functional for that release.
     Otherwise, it is considered an error.
 
     Args:
         name_cve (str): The CVE identifier
-        name_release (str): The release name (e.g., 'buster', 'bullseye'). #We have to add a verification of the release name... If the release is correct?
+        name_release (str): The release name (e.g., 'buster', 'bullseye').
+
+    Raises:
+        ValueError: If the release name is not supported.
     """
-    
-    cve_dir = f"decret_{name_cve}"
-    os.makedirs(cve_dir, exist_ok=True)
-    output_dir = os.path.join(cve_dir, name_release)
+    output_base = os.path.join("out", name_cve)
+    os.makedirs(output_base, exist_ok=True)
+    output_dir = os.path.join(output_base, name_release)
     os.makedirs(output_dir, exist_ok=True)
+
     log_file_path = os.path.join(output_dir, "log.txt")
     dockerfile_generated = os.path.join(output_dir, "Dockerfile")
     cmdline_path = os.path.join(output_dir, "cmdline.txt")
     status_path = os.path.join(output_dir, "status.txt")
+
 
     if not check_internet_state():
         with open(log_file_path, 'w') as l:
             l.write('Error: no connection to internet.\n')
         with open(status_path, 'w') as s:
             s.write('error\n')
-        print(f"[ERROR] {name_cve} ({name_release}): no connection internet.")
+        print(f"[ERROR] {name_cve} ({name_release}): no internet connection.")
         return
 
+
     cmd = f"python3 -m decret -n {name_cve} -r {name_release} --dont-run --selenium -d {output_dir}"
-    print(f"[DEBUG] Commande exécutée : {cmd}")
+    print(f"[DEBUG] Command executed: {cmd}")
 
     with open(log_file_path, 'w') as log:
         log.write(f"Command launched: {cmd}\n")
@@ -154,7 +174,7 @@ if __name__ == "__main__":
     Uses a thread pool (10 workers) to process multiple CVEs/releases in parallel. 
     """
     if len(sys.argv) < 2:
-        print("Usage: python3 decret_auto.py <fichier_cve>")
+        print("Usage: python3 decret_auto.py <cve_file>")
         sys.exit(1)
     cve_file = sys.argv[1]
     cve_dict = parse_cve_file(cve_file)
@@ -172,3 +192,4 @@ if __name__ == "__main__":
                 future.result()
             except Exception as exc:
                 print(f"[THREAD ERROR] {exc}")
+    print("All tasks completed.")
