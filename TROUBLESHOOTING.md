@@ -1,24 +1,25 @@
-# Python environment error: `AssertionError` when running `decret_auto.py`
+# Firefox environment error: InvalidArgumentException when running tests
 
-## Error message example: 
+## Error message example
+````bash
+selenium.common.exceptions.InvalidArgumentException: Message: binary is not a Firefox executable
+````
+
+## When does this happen?
+This error can occur when running DECRET, or its tests (for example, with `pytest` command) if Firefox was installed with `Snap` or if the wrong Firefox binary is being used.  
+It often happens when:  
+- Firefox is installed with `Snap` instead of `apt`.
+- There are conflicting Firefox installations.
+
+## How to fix
+Don’t reinstall Selenium or try other installations!
+Instead, clean up your Firefox installation and make sure you’re using the correct version:
 ```bash
-ERROR: Exception: Traceback (most recent call last): 
-...
-File ".../pip/_internal/operations/install/wheel.py", line 618, in _install_wheel assert os.path.exists(pyc_path) AssertionError
-```
-##  When does this happen?
-This error, can occur when running `decret_auto.py`.  
-If there are some corrupted, old Python cache files in the virtual environment `(venv)`.
+sudo snap remove firefox
+sudo apt update
+sudo apt install firefox-esr
+snap list | grep firefox   # Should return nothing
+apt list --installed | grep firefox
+```  
 
-## How to fix:
-If the `venv` folder is present, don't delete it.  
-Instead, clean up the Python cache files and reactivate the environment: 
-```bash 
-find venv/ -name "*.pyc" -delete
-find venv/ -name "__pycache__" -type d -exec rm -r {} +
-deactivate
-source venv/bin/activate
-pip install -r requirements-minimal.txt
-```
-
-This should resolve the issue and allow you to run the script without errors.
+After following the steps above, you can check that everything works by running: `pytest`
