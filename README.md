@@ -80,29 +80,6 @@ pytest
 5. Verify your code passes CI tests under `.github/workflows`
 6. Open pull request
 
-## Automated testing
-To test if CVEs are functional in `DECRET`, you can use the automated script as follows:
-
-### Step 1: Prepare your configuration file
-- Create a text file (e.g., decret_auto.txt) listing the CVEs and, optionally, the releases to test.
-- By default, the script uses the 4 latest Debian releases: `trixie`, `bookworm`, `bullseye`, and `buster`.  
-If you want, you can specify of these releases, one or more, for each CVE in the configuration file.  
-If no releases are specified for a CVE, all 4 latest releases will be tested automatically.  
-- Syntax example:
-
-```bash
-2025-45765: trixie, bullseye
-2015-5602: trixie, bookworm, bullseye, buster
-2022-43995
-```
-### Step 2: Run the automated test script
-- To run the tests, execute the following command:
-```bash
-python3 decret_auto/decret_auto.py decret_auto/decret_auto.txt
-```
-- This script will test each CVE by release from the configuration file and check if `DECRET` generates a valid Dockerfile for each (status file).
-- The script may take some time to complete, depending on the number of CVEs and releases tested.
-
 ### Troubleshooting
 If you encounter any issues, please refer to the [Troubleshooting Journal](./TROUBLESHOOTING.md) for solutions.
 
