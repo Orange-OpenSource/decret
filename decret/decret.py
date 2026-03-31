@@ -249,6 +249,21 @@ def prepare_browser():
 
 
 def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
+    """
+    Parses the CVE table extract package information for the specified Debian release.
+
+    Args:
+        release (str): The Debian release to search for (e.g., 'bullseye').
+        info_table: The Selenium object representing the CVE HTML table.
+
+    Returns:
+        Tuple[list[dict], list[str]]:
+            - List of dictionaries with package info for the requested release.
+            - List of all available releases found in the table.
+
+    Raises:
+        ReleaseNotAffectedByCVE: If the release is not affected by the CVE.    
+    """
     results = []
     available_releases = []
     i = 0
@@ -272,6 +287,11 @@ def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
                 src_package = data[0]
                 release = data[2]
                 fixed_version = data[3]
+                if (str(fixed_version).strip().startswith("(not")):
+                    tmp = " ".join(data[3:])
+                    raise ReleaseNotAffectedByCVE(f"Debian {release} was not affected by CVE "
+                                                  f"for package '{src_package}'. "
+                                                  f"Invalid fixed_version detected: '{tmp}'.")
                 results.append(
                     {
                         "src_package": src_package,
@@ -660,21 +680,29 @@ def main():  # pragma: no cover
 
         try:
             cve_details = get_cve_details_from_selenium(browser, args)
+        except ReleaseNotAffectedByCVE as invalid_exc:
+            raise FatalError(
+                f"\n{invalid_exc}"
+            ) from invalid_exc
+        
         except Exception as selenium_exc:
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
-            ) from selenium_exc
+            ) from selenium_exc 
         
     except ReleaseNotAffectedByCVE as exc:
         raise FatalError(exc)
    
+    # vuln_fixed is False if (unfixed) in cve_details
+    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
     print(f"CVE details fetched.\n {cve_details}\n\n") 
+    
     # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
+    
     # We determine if the vulnerability is fixed or not
-    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
     print("Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
     print(f"Source package hash : {cve_details[0]['hash']}\n\n")
@@ -695,6 +723,9 @@ def main():  # pragma: no cover
             browser.quit()
 
     source_lines = prepare_sources(snapshot_id, vuln_fixed)
+    if not vuln_fixed:
+        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
+        args.release = LATEST_RELEASE
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
