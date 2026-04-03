@@ -1,7 +1,7 @@
 """
 Software Name : decret (DEbian Cve REproducer Tool)
 Version : 0.1
-SPDX-FileCopyrightText : Copyright (c) 2023-2026 Orange
+SPDX-FileCopyrightText : Copyright (c) 2023-2025 Orange
 SPDX-License-Identifier : BSD-3-Clause
 
 This software is distributed under the BSD 3-Clause "New" or "Revised" License,
@@ -9,7 +9,7 @@ the text of which is available at https://opensource.org/licenses/BSD-3-Clause
 or see the "license.txt" file for more not details.
 
 Authors : Clément PARSSEGNY, Olivier LEVILLAIN, Maxime BELAIR, Mathieu BACOU,
-Nicolas DEJON, Zakaria CHAKER
+Nicolas DEJON
 Software description : A tool to reproduce vulnerability affecting Debian
 It gathers details from the Debian metadata and exploits from exploit-db.com
 in order to build and run a vulnerable Docker container to test and
@@ -318,6 +318,21 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
 
 
 def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
+    """
+    Parses the Debian Security Tracker JSON file to extract details about a given CVE for a specific Debian release.
+    To build cve_details (list of dictionaries)
+    - Supports loading the JSON from a cache file if provided, otherwise fetches it from the official Debian tracker.
+    - Handles cases where the package is present but the vulnerability is not fixed, by checking the repositories field:
+        - If the CVE is fixed for the current release, returns a list with: {'src_package', 'release', 'fixed_version'}.
+        - If the CVE is unfixed and the vulnerable package is not found retun a list with : {'src_package', 'release', 'unfixed'}
+        - If the CVE is unfixed but the vulnerable package is available, adds the key 'vulnerable_version' to {'src_package', 'release', 'unfixed'}.
+
+    Returns:
+        cve_details: a list of dictionaries with the package name, release, and fix status.
+
+    Raises:
+        CVENotFound: If no affected package is found for the given CVE and release.
+    """
     response = None
     if args.cache_main_json_file:
         json_cache_file = Path(args.cache_main_json_file)
@@ -345,9 +360,18 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         if args.release not in cve_info["releases"]:
             continue
 
-        if cve_info["releases"][args.release]["status"] == "open":
+        # Get the release specific info for this CVE
+        release_info = cve_info["releases"][args.release]
+        version_vulnerable = None
+
+        # If the vulnerability is still open (unfixed)
+        if release_info["status"] == "open":
             fixed_version = "(unfixed)"
+            # Try to get the vulnerable version from the repositories field (`repositories` key)
+            repositories = release_info.get("repositories", {})
+            version_vulnerable = repositories.get(args.release)
         else:
+            # If fixed, get the fixed version pakcage 
             fixed_version = cve_info["releases"][args.release]["fixed_version"]
         if fixed_version == "0":
             raise CVENotFound(
@@ -355,14 +379,17 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
                 f"Try another release."
                 f"(see https://security-tracker.debian.org/tracker/CVE-{args.cve_number})."
             )
-        results.append(
-            {
+        #Here, we try to build the result dictionary for this package/release
+        result = {
                 "src_package": package_name,
                 "release": args.release,
                 "fixed_version": fixed_version,
-            }
-        )
-
+        }
+        # If a vulnerable version is available, add it to the result
+        if version_vulnerable:
+            result["vulnerable_version"] = version_vulnerable
+        
+        results.append(result)
     if not results:
         raise CVENotFound("No affected package found.")
 
@@ -370,6 +397,16 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
 
 
 def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[dict]:
+    """
+    Retrieves the vulnerable version for each package, using both the JSON data and snapshot.debian.org.
+    For each package, determines the vulnerable version based on the CVE details and available package version for the specified release.
+
+    Returns:
+        cve_details : The updated list of dictionaries with the 'vuln_version' key added.
+
+    Raises:
+        Exception: If no vulnerable version can be found for a package.
+    """
     for item in cve_details:
         if args.vulnerable_version:
             item["vuln_version"] = args.vulnerable_version
@@ -377,8 +414,18 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/"
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
         known_versions = [x["version"] for x in response if "~bpo" not in x["version"]]
+        # If the package is unfixed.
         if item["fixed_version"] == "(unfixed)":
-            item["vuln_version"] = known_versions[0]  # We select the latest version
+            # If a vulnerable version is already known (from the JSON), we use it.
+            if "vulnerable_version" in item and item["vulnerable_version"]:
+                item["vuln_version"] = item["vulnerable_version"]  # We select the latest version 
+                # In this case, we update the flag to indicate that the version is not fixed, but for this release the package is available.
+                item["fixed_version"] = "unfixed_version_identified"
+            # Otherwise, we use the latest available version from snapshot.debian.org (index 0)
+            elif known_versions:
+                item["vuln_version"] = known_versions[0]
+            else:
+                item["vuln_version"] = None   
         else:
             for version, prev_version in zip(known_versions[:-1], known_versions[1:]):
                 if version == item["fixed_version"]:
@@ -404,10 +451,22 @@ def get_bin_names(cve_details: list[dict]) -> list[str]:
 def get_hash_and_bin_names(
     args: argparse.Namespace, cve_details: list[dict]
 ) -> list[dict]:
+    """
+    For each package in cve_details, retrieves the hash of the vulnerable version and the associated binary package name.
+    Tries to fetch the hash from the binary files.
+    Updates each dictionary with the 'hash' and 'bin_name' keys.
+
+    Returns:
+        cve_details : The updated list of dictionaries with hash and binary package name information.
+
+    Raises:
+        Exception: If no binary/source files are found, or if the binary package name is invalid.
+    """
     i = 0
     for item in cve_details:
         try:
             # pylint: disable=line-too-long
+            # TODO: Add a verification, sometimes (for some vulnerable versions), the link is not valid.
             url = f"http://snapshot.debian.org/mr/binary/{item['src_package']}/{item['vuln_version']}/binfiles"
             response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
             for res in response:
@@ -421,6 +480,7 @@ def get_hash_and_bin_names(
                 # We get the hash from the src files, but we also collect the
                 # binary packages names associated for the Dockerfile.
                 # pylint: disable=line-too-long
+                # TODO: Add a verification, sometimes (for some vulnerable versions), the link is not valid.
                 url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/{item['vuln_version']}/srcfiles"
                 response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
                 item["hash"] = response[-1]["hash"]
@@ -595,8 +655,13 @@ def init_decret():  # pragma: no cover
 
 
 def main():  # pragma: no cover
-    args, browser = init_decret()
+    """
+    Main entry point for the CVE analysis and Dockerfile generation workflow.
 
+    Raises:
+        FatalError: If CVE details cannot be retrieved by any method.
+    """
+    args, browser = init_decret()
     # Then get the details for the given CVE
     try:
         # We try to get the details by the Debian JSON
@@ -615,13 +680,16 @@ def main():  # pragma: no cover
                 "Error while retrieving CVE details using Selenium"
             ) from selenium_exc
 
-    # vuln_fixed is False if (unfixed) in cve_details
-    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
     print(f"CVE details fetched.\n {cve_details}\n\n")
 
+    # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
+
+    # We determine if the vulnerability is fixed or not
+    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
+    unfixed_version_identified = not any(item["fixed_version"] == "unfixed_version_identified" for item in cve_details)
 
     print("Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
@@ -643,9 +711,12 @@ def main():  # pragma: no cover
             browser.quit()
 
     source_lines = prepare_sources(snapshot_id, vuln_fixed)
-    if not vuln_fixed:
+    # If the vulnerability is unfixed and the version is not found, use the latest release
+    if not vuln_fixed and unfixed_version_identified:
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
         args.release = LATEST_RELEASE
+    else:
+        print("\n\nVulnerable package available for the original release, using it.\n\n")
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
