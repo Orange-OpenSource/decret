@@ -680,19 +680,7 @@ def main():  # pragma: no cover
                 "Error while retrieving CVE details using Selenium"
             ) from selenium_exc
    
-    print(f"CVE details fetched.\n {cve_details}\n\n")
-    
-    # We add here a step of analysis: it ensures that no inconsistent or incomplete result is processed further.
-    for item in cve_details:
-        if(
-            item.get("fixed_version") is None
-            or item.get("fixed_version") == "0"
-            or str(item.get("fixed_version")).strip().startswith("(not")
-        ):
-            print("[ERROR] Inconsistent result detected in cve_details. Stopping the script.")
-            print(f"[ERROR] Problematic result details:\n  {item}\n")
-            return
-        
+    print(f"CVE details fetched.\n {cve_details}\n\n") 
     # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
