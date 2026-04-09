@@ -698,11 +698,11 @@ def main():  # pragma: no cover
             raise FatalError(
                 f"\n{invalid_exc}"
             ) from invalid_exc
-
+        
         except Exception as selenium_exc:
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
-            ) from selenium_exc
+            ) from selenium_exc 
         
     except ReleaseNotAffectedByCVE as exc:
         raise FatalError(exc)
@@ -741,7 +741,6 @@ def main():  # pragma: no cover
         print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
         args.release = LATEST_RELEASE
 
-
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
     if args.only_create_dockerfile:
@@ -753,4 +752,3 @@ def main():  # pragma: no cover
         return
 
     run_docker(args)
-    
