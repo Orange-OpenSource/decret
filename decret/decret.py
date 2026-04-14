@@ -74,6 +74,10 @@ class CVENotFound(BaseException):
     pass
 
 
+class ReleaseNotAffectedByCVE(BaseException):
+    pass
+
+
 def arg_parsing(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -371,9 +375,10 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             vulnerable_version = repositories.get(args.release)
         
         else:
+            # If fixed, get the fixed version package
             fixed_version = cve_info["releases"][args.release]["fixed_version"]
         if fixed_version == "0":
-            raise CVENotFound(
+            raise ReleaseNotAffectedByCVE(
                 f"Debian {args.release} was not affected by {cve_id}.\n"
                 f"Try another release."
                 f"(see https://security-tracker.debian.org/tracker/CVE-{args.cve_number})."
@@ -662,12 +667,12 @@ def main():  # pragma: no cover
         except Exception as selenium_exc:
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
-            ) from selenium_exc
-
-    # vuln_fixed is False if (unfixed) in cve_details
-    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
-    print(f"CVE details fetched.\n {cve_details}\n\n")
-
+            ) from selenium_exc    
+    except ReleaseNotAffectedByCVE as exc:
+        raise FatalError(exc)
+   
+    print(f"CVE details fetched.\n {cve_details}\n\n") 
+    # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
@@ -691,14 +696,7 @@ def main():  # pragma: no cover
         finally:
             browser.quit()
 
-    source_lines = prepare_sources(snapshot_id, vuln_fixed)
-
-    # If the vulnerability is unfixed and the version is not found, use the latest release
-    if not vuln_fixed:
-        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
-        args.release = LATEST_RELEASE
-    else:
-        print("\n\nVulnerable package available.\n\n")
+    source_lines = prepare_sources(snapshot_id)
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
