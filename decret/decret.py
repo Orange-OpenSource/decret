@@ -422,8 +422,6 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
             # If a vulnerable version is already known (from the JSON), we use it
             if "vulnerable_version" in item and item["vulnerable_version"]:
                 item["vuln_version"] = item["vulnerable_version"]
-                # In this case, we modify the flag to indicate that the version is not fixed, but the vulnerable version is available
-                item["fixed_version"] = "unfixed_version_identified"
             # Otherwise, we use the latest available version from snapshot.debian.org (index 0)
             elif known_versions:
                 item["vuln_version"] = known_versions[0]
