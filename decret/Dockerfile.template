@@ -8,10 +8,6 @@ RUN echo -n "" > /etc/apt/sources.list
 RUN echo '{{source_line}}' >> /etc/apt/sources.list.d/snapshot.list
 {% endfor %}
 
-{% if need_usrmerge %}
-RUN printf 'Package: *\nPin: release a=bullseye\nPin-Priority: 1001\n' > /etc/apt/preferences.d/bullseye-priority
-{% endif %}
-
 RUN apt-get update
 {% if default_packages %}
 RUN apt-get install -y {{apt_flag}} --fix-missing {{default_packages}}
