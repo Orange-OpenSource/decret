@@ -557,13 +557,81 @@ def write_cmdline(args: argparse.Namespace):
         cmdline_file.write("\n")
 
 
-def prepare_sources(snapshot_id: str):
+def get_snapshot_aliases(snapshot_id: str) -> dict:
+    """
+    Parses the snapshot directory to find alias mappings to their actual releases.
+
+    Args:
+        snapshot_id (str): The snapshot identifier (e.g.'20250624T023934Z').
+
+    Returns:
+        dict: A dictionary mapping aliases to release names.
+              For example: {'stable': 'bookworm', 'testing': 'trixie', 'oldstable': 'bullseye', 'oldoldstable': 'buster', 'unstable': 'sid'}
+    """
+    url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/dists/"
+    try:
+        server_answer = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        server_answer.raise_for_status()
+    except Exception as exc:
+        print(f"Could not parse snapshot aliases: {exc}")
+        return {}
+    
+    aliases = {}
+
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
+
+    for match in pattern.finditer(server_answer.text):
+        alias = match.group(1).strip()
+        target = match.group(2).strip()
+        aliases[alias] = target
+
+    return aliases
+
+
+def prepare_sources(snapshot_id: str, vuln_fixed: bool, release: str = None):
+    """
+    Generates the Debian snapshot APT source lines for the Dockerfile.
+    For bookworm/trixie, uses the original alias-based logic (testing/stable/unstable). 
+    For older releases, parses the snapshot to determine the correct source strategy:
+        - Release is 'testing' -> use testing/stable/unstable aliases
+        - Release is 'stable' -> use release name directly
+        - Release is 'oldstable' or 'oldoldstable' -> use release name directly
+                         
+    Args:
+        snapshot_id (str): The snapshot identifier used to build the snapshot URL.
+        vuln_fixed (bool): If the vulnerability has been fixed.
+        release (str): Debian release (e.g. 'bullseye', 'bookworm'). Defaults to None.
+
+    Returns:
+        list[str]: A list of APT source lines to add to the Dockerfile. Returns an empty list if the vulnerability is not fixed.
+    """
     options = (
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-    release = ["testing", "stable", "unstable"]
-    return [f"deb {options} {url} {rel} main" for rel in release]
+    if vuln_fixed:
+        # See https://wiki.debian.org/UsrMerge for more details on usr-merge
+        USR_MERGE_RELEASES = ["bookworm", "trixie"]
+        if release in USR_MERGE_RELEASES or release is None:
+            releases = ["testing", "stable", "unstable"]
+            return [f"deb {options} {url} {rel} main" for rel in releases]
+
+        aliases = get_snapshot_aliases(snapshot_id)
+        release_alias = next(
+        (alias for alias, target in aliases.items() if target == release),
+        "not_found")
+
+        match release_alias:
+            case "testing":
+                releases = ["testing", "stable", "unstable"]
+                return [f"deb {options} {url} {rel} main" for rel in releases]
+
+            case "stable" | "oldstable" | "oldoldstable":
+                return [f"deb {options} {url} {release} main"]
+            
+            case _:
+                return [f"deb {options} {url} {release} main"]
 
 
 # pylint: disable=too-many-locals
@@ -729,7 +797,6 @@ def main():  # pragma: no cover
             browser.quit()
 
     source_lines = prepare_sources(snapshot_id)
-
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
     if args.only_create_dockerfile:
