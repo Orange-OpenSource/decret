@@ -499,8 +499,8 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
     aliases = {}
     known_aliases = ["stable", "testing", "unstable", "oldstable", "oldoldstable"]
 
-    #We use regex (also used) to catch symlink patterns (e.g. 'stable -> bookworm')
-    pattern = re.compile(r'([\w]+)\s*->\s*([\w]+)')
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    pattern = re.compile(r'<a href="([\w-]+)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
         alias = match.group(1).strip()
