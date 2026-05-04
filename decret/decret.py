@@ -531,7 +531,58 @@ def write_cmdline(args: argparse.Namespace):
         cmdline_file.write("\n")
 
 
-def prepare_sources(snapshot_id: str, vuln_fixed: bool):
+def get_snapshot_aliases(snapshot_id: str) -> dict:
+    """
+    Parses the snapshot directory to find alias mappings to their actual releases.
+
+    Args:
+        snapshot_id (str): The snapshot identifier (e.g.'20250624T023934Z').
+
+    Returns:
+        dict: A dictionary mapping aliases to release names.
+              For example: {'stable': 'bookworm', 'testing': 'trixie', 'oldstable': 'bullseye', 'oldoldstable': 'buster', 'unstable': 'sid'}
+    """
+    url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/dists/"
+    try:
+        server_answer = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        server_answer.raise_for_status()
+    except Exception as exc:
+        print(f"Could not parse snapshot aliases: {exc}")
+        return {}
+    
+    aliases = {}
+    known_aliases = ["stable", "testing", "unstable", "oldstable", "oldoldstable"]
+
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    pattern = re.compile(r'<a href="([\w-]+)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
+
+    for match in pattern.finditer(server_answer.text):
+        alias = match.group(1).strip()
+        target = match.group(2).strip()
+        if alias in known_aliases:
+            aliases[alias] = target
+
+    print(f"Snapshot {snapshot_id} aliases: {aliases}")
+    return aliases
+
+
+def prepare_sources(snapshot_id: str, vuln_fixed: bool, release: str = None):
+    """
+    Generates the Debian snapshot APT source lines for the Dockerfile.
+    For bookworm/trixie, uses the original alias-based logic (testing/stable/unstable). 
+    For older releases, parses the snapshot to determine the correct source strategy:
+        - Release is 'testing' -> use testing/stable/unstable aliases
+        - Release is 'stable' -> use release name directly
+        - Release is 'oldstable' or 'oldoldstable' -> use release name directly
+                         
+    Args:
+        snapshot_id (str): The snapshot identifier used to build the snapshot URL.
+        vuln_fixed (bool): If the vulnerability has been fixed.
+        release (str): Debian release (e.g. 'bullseye', 'bookworm'). Defaults to None.
+
+    Returns:
+        list[str]: A list of APT source lines to add to the Dockerfile. Returns an empty list if the vulnerability is not fixed.
+    """
     options = (
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
