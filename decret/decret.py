@@ -556,15 +556,13 @@ def write_cmdline(args: argparse.Namespace):
         cmdline_file.write("\n")
 
 
-def prepare_sources(snapshot_id: str, vuln_fixed: bool):
+def prepare_sources(snapshot_id: str):
     options = (
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-    if vuln_fixed:
-        release = ["testing", "stable", "unstable"]
-        return [f"deb {options} {url} {rel} main" for rel in release]
-    return []
+    release = ["testing", "stable", "unstable"]
+    return [f"deb {options} {url} {rel} main" for rel in release]
 
 
 # pylint: disable=too-many-locals
@@ -707,8 +705,6 @@ def main():  # pragma: no cover
     except ReleaseNotAffectedByCVE as exc:
         raise FatalError(exc)
    
-    # vuln_fixed is False if (unfixed) in cve_details
-    vuln_fixed = not any(item["fixed_version"] == "(unfixed)" for item in cve_details)
     print(f"CVE details fetched.\n {cve_details}\n\n") 
     
     # Get the vulnerable version for the affected package.
@@ -736,10 +732,7 @@ def main():  # pragma: no cover
         finally:
             browser.quit()
 
-    source_lines = prepare_sources(snapshot_id, vuln_fixed)
-    if not vuln_fixed:
-        print(f"\n\nVulnerability unfixed. Using a {LATEST_RELEASE} container.\n\n")
-        args.release = LATEST_RELEASE
+    source_lines = prepare_sources(snapshot_id)
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
