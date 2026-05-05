@@ -553,7 +553,7 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
     aliases = {}
     known_aliases = ["stable", "testing", "unstable", "oldstable", "oldoldstable"]
 
-    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    #Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
     pattern = re.compile(r'<a href="([\w-]+)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
@@ -562,7 +562,6 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
         if alias in known_aliases:
             aliases[alias] = target
 
-    print(f"Snapshot {snapshot_id} aliases: {aliases}")
     return aliases
 
 
