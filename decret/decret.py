@@ -497,16 +497,14 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
         return {}
     
     aliases = {}
-    known_aliases = ["stable", "testing", "unstable", "oldstable", "oldoldstable"]
-
+    
     #Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
-    pattern = re.compile(r'<a href="([\w-]+)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
+    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
         alias = match.group(1).strip()
         target = match.group(2).strip()
-        if alias in known_aliases:
-            aliases[alias] = target
+        aliases[alias] = target
 
     return aliases
 
@@ -533,6 +531,7 @@ def prepare_sources(snapshot_id: str, vuln_fixed: bool, release: str = None):
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
     if vuln_fixed:
+        # See https://wiki.debian.org/UsrMerge for more details on usr-merge
         USR_MERGE_RELEASES = ["bookworm", "trixie"]
         if release in USR_MERGE_RELEASES or release is None:
             releases = ["testing", "stable", "unstable"]
