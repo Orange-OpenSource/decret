@@ -497,8 +497,8 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
         return {}
     
     aliases = {}
-    
-    #Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
     pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
