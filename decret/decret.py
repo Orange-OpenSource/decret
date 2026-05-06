@@ -352,9 +352,10 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             json_cache_file.write_bytes(server_answer.content)
             print(f"Debian tracker JSON saved at {args.cache_main_json_file}.")
 
-    results = []
-
     cve_id = f"CVE-{args.cve_number}"
+
+    # Step 1: Retrieve all occurrences of the CVE for the given release
+    affected_packages = []
     for package_name, package_info in response.items():
         if cve_id not in package_info:
             continue
@@ -362,7 +363,14 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         cve_info = package_info[cve_id]
         if args.release not in cve_info["releases"]:
             continue
+        affected_packages.append((package_name, cve_info))
 
+    if not affected_packages: 
+        raise CVENotFound("No affected package found.")
+        
+    # Step 2: Build results, skip packages with fixed_version == "0", only if other packages have a valid fixed_version
+    results = []
+    for package_name, cve_info in affected_packages:
         # Get the release specific info for this CVE
         release_info = cve_info["releases"][args.release]
         vulnerable_version = None
@@ -377,12 +385,8 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         else:
             # If fixed, get the fixed version package
             fixed_version = cve_info["releases"][args.release]["fixed_version"]
-        if fixed_version == "0":
-            raise ReleaseNotAffectedByCVE(
-                f"Debian {args.release} was not affected by {cve_id}.\n"
-                f"Try another release."
-                f"(see https://security-tracker.debian.org/tracker/CVE-{args.cve_number})."
-            )
+            if fixed_version == "0":
+                continue
 
         #Build the result (dictionary) for this package/release
         result = {
@@ -395,8 +399,15 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             result["vulnerable_version"] = vulnerable_version
         
         results.append(result)
+        break # Only one valid package is selected
+
+    # All packages were filtered out (fixed_version == "0"): the release is not affected by the CVE
     if not results:
-        raise CVENotFound("No affected package found.")
+        raise CVENotFound(
+            f"Debian {args.release} was not affected by {cve_id}.\n"
+            f"Try another release. "
+            f"(see https://security-tracker.debian.org/tracker/CVE-{args.cve_number})."
+        )
 
     return results
 
