@@ -249,6 +249,21 @@ def prepare_browser():
 
 
 def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
+    """
+    Parses the CVE table extract package information for the specified Debian release.
+
+    Args:
+        release (str): The Debian release to search for (e.g., 'bullseye').
+        info_table: The Selenium object representing the CVE HTML table.
+
+    Returns:
+        Tuple[list[dict], list[str]]:
+            - List of dictionaries with package info for the requested release.
+            - List of all available releases found in the table.
+
+    Raises:
+        ReleaseNotAffectedByCVE: If the release is not affected by the CVE.    
+    """
     results = []
     available_releases = []
     i = 0
@@ -272,6 +287,11 @@ def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
                 src_package = data[0]
                 release = data[2]
                 fixed_version = data[3]
+                if (str(fixed_version).strip().startswith("(not")):
+                    tmp = " ".join(data[3:])
+                    raise ReleaseNotAffectedByCVE(f"Debian {release} was not affected by CVE "
+                                                  f"for package '{src_package}'. "
+                                                  f"Invalid fixed_version detected: '{tmp}'.")
                 results.append(
                     {
                         "src_package": src_package,
@@ -381,7 +401,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             # Try to get the vulnerable version from the repositories field (`repositories` key)
             repositories = release_info.get("repositories", {})
             vulnerable_version = repositories.get(args.release)
-        
+
         else:
             # If fixed, get the fixed version package
             fixed_version = cve_info["releases"][args.release]["fixed_version"]
@@ -413,6 +433,16 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
 
 
 def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[dict]:
+    """
+    Retrieves the vulnerable version for each package, using both the JSON data and snapshot.debian.org.
+    For each package, determines the vulnerable version based on the CVE details and available package version for the specified release.
+
+    Returns:
+        cve_details : The updated list of dictionaries with the 'vuln_version' key added.
+
+    Raises:
+        Exception: If no vulnerable version can be found for a package.
+    """
     for item in cve_details:
         if args.vulnerable_version:
             item["vuln_version"] = args.vulnerable_version
@@ -426,8 +456,7 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
             # If a vulnerable version is already known (from the JSON), we use it
             if "vulnerable_version" in item and item["vulnerable_version"]:
                 item["vuln_version"] = item["vulnerable_version"]
-                # In this case, we modify the flag to indicate that the version is not fixed, but the vulnerable version is available
-                item["fixed_version"] = "unfixed_version_identified"
+
             # Otherwise, we use the latest available version from snapshot.debian.org (index 0)
             elif known_versions:
                 item["vuln_version"] = known_versions[0]
@@ -563,7 +592,7 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
     
     aliases = {}
     
-    #Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
     pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
@@ -574,7 +603,7 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
     return aliases
 
 
-def prepare_sources(snapshot_id: str, vuln_fixed: bool, release: str = None):
+def prepare_sources(snapshot_id: str, release: str = None):
     """
     Generates the Debian snapshot APT source lines for the Dockerfile.
     For bookworm/trixie, uses the original alias-based logic (testing/stable/unstable). 
@@ -595,28 +624,27 @@ def prepare_sources(snapshot_id: str, vuln_fixed: bool, release: str = None):
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-    if vuln_fixed:
-        # See https://wiki.debian.org/UsrMerge for more details on usr-merge
-        USR_MERGE_RELEASES = ["bookworm", "trixie"]
-        if release in USR_MERGE_RELEASES or release is None:
+    # See https://wiki.debian.org/UsrMerge for more details on usr-merge
+    USR_MERGE_RELEASES = ["bookworm", "trixie"]
+    if release in USR_MERGE_RELEASES or release is None:
+        releases = ["testing", "stable", "unstable"]
+        return [f"deb {options} {url} {rel} main" for rel in releases]
+
+    aliases = get_snapshot_aliases(snapshot_id)
+    release_alias = next(
+        (alias for alias, target in aliases.items() if target == release),
+    "not_found")
+
+    match release_alias:
+        case "testing":
             releases = ["testing", "stable", "unstable"]
             return [f"deb {options} {url} {rel} main" for rel in releases]
 
-        aliases = get_snapshot_aliases(snapshot_id)
-        release_alias = next(
-        (alias for alias, target in aliases.items() if target == release),
-        "not_found")
-
-        match release_alias:
-            case "testing":
-                releases = ["testing", "stable", "unstable"]
-                return [f"deb {options} {url} {rel} main" for rel in releases]
-
-            case "stable" | "oldstable" | "oldoldstable":
-                return [f"deb {options} {url} {release} main"]
+        case "stable" | "oldstable" | "oldoldstable":
+            return [f"deb {options} {url} {release} main"]
             
-            case _:
-                return [f"deb {options} {url} {release} main"]
+        case _:
+            return [f"deb {options} {url} {release} main"]
 
 
 # pylint: disable=too-many-locals
@@ -726,8 +754,13 @@ def init_decret():  # pragma: no cover
 
 
 def main():  # pragma: no cover
-    args, browser = init_decret()
+    """
+    Main entry point for the CVE analysis and Dockerfile generation workflow.
 
+    Raises:
+        FatalError: If CVE details cannot be retrieved by any method.
+    """
+    args, browser = init_decret()
     # Then get the details for the given CVE
     try:
         # We try to get the details by the Debian JSON
@@ -741,19 +774,26 @@ def main():  # pragma: no cover
 
         try:
             cve_details = get_cve_details_from_selenium(browser, args)
+        except ReleaseNotAffectedByCVE as invalid_exc:
+            raise FatalError(
+                f"\n{invalid_exc}"
+            ) from invalid_exc
+        
         except Exception as selenium_exc:
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
-            ) from selenium_exc    
+            ) from selenium_exc 
     except ReleaseNotAffectedByCVE as exc:
         raise FatalError(exc)
    
     print(f"CVE details fetched.\n {cve_details}\n\n") 
+    
     # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
-
+    
+    # We determine if the vulnerability is fixed or not
     print("Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
     print(f"Source package hash : {cve_details[0]['hash']}\n\n")
@@ -773,7 +813,7 @@ def main():  # pragma: no cover
         finally:
             browser.quit()
 
-    source_lines = prepare_sources(snapshot_id)
+    source_lines = prepare_sources(snapshot_id, args.release)
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
