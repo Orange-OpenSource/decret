@@ -613,15 +613,14 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
 def prepare_sources(snapshot_id: str, release: str = None):
     """
     Generates the Debian snapshot APT source lines for the Dockerfile.
-    For bookworm/trixie, uses the original alias-based logic (testing/stable/unstable). 
-    For older releases, parses the snapshot to determine the correct source strategy:
-        - Release is 'testing' -> use testing/stable/unstable aliases
-        - Release is 'stable' -> use release name directly
-        - Release is 'oldstable' or 'oldoldstable' -> use release name directly
+    Strategy: 
+        - If the release does exist in the snapshot takes testing/stable/unstable aliases.
+        - If a USR_MERGE release (bookworm/trixie) is detected alongside the target release, use the release name directly to avoid usr-merge conflicts.
+        - If the release is 'testing' in the snapshot, use testing/stable/unstable aliases.
+        - Otherwise (stable/oldstable/oldoldstable), use the release name directly.
                          
     Args:
         snapshot_id (str): The snapshot identifier used to build the snapshot URL.
-        vuln_fixed (bool): If the vulnerability has been fixed.
         release (str): Debian release (e.g. 'bullseye', 'bookworm'). Defaults to None.
 
     Returns:
@@ -631,25 +630,38 @@ def prepare_sources(snapshot_id: str, release: str = None):
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
+
+    aliases = get_snapshot_aliases(snapshot_id)
     # See https://wiki.debian.org/UsrMerge for more details on usr-merge
     USR_MERGE_RELEASES = ["bookworm", "trixie"]
-    if release in USR_MERGE_RELEASES or release is None:
+
+    usr_merge_detected = any(
+        target in USR_MERGE_RELEASES
+        for target in aliases.values()
+    )
+
+    release_exists_in_snapshot = release in aliases.values()
+
+    release_alias = next(
+       (alias for alias, target in aliases.items() if target == release),
+       "not_found"
+    )
+
+    if not release_exists_in_snapshot:
         releases = ["testing", "stable", "unstable"]
         return [f"deb {options} {url} {rel} main" for rel in releases]
 
-    aliases = get_snapshot_aliases(snapshot_id)
-    release_alias = next(
-        (alias for alias, target in aliases.items() if target == release),
-    "not_found")
+    if usr_merge_detected:
+       return [f"deb {options} {url} {release} main"]
 
     match release_alias:
         case "testing":
-            releases = ["testing", "stable", "unstable"]
-            return [f"deb {options} {url} {rel} main" for rel in releases]
+           releases = ["testing", "stable", "unstable"]
+           return [f"deb {options} {url} {rel} main" for rel in releases]
 
         case "stable" | "oldstable" | "oldoldstable":
             return [f"deb {options} {url} {release} main"]
-            
+
         case _:
             return [f"deb {options} {url} {release} main"]
 
