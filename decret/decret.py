@@ -671,7 +671,7 @@ def prepare_sources(snapshot_id: str, release: str = None):
 
     match release_alias:
         case "testing":
-             # Release is testing in the snapshot, use testing/stable/unstable aliases
+            # Release is testing in the snapshot, use testing/stable/unstable aliases
             releases = ["testing", "stable", "unstable"]
             return [f"deb {options} {url} {rel} main" for rel in releases]
         case "stable" | "oldstable" | "oldoldstable":
@@ -683,7 +683,6 @@ def prepare_sources(snapshot_id: str, release: str = None):
             return [f"deb {options} {url} {release} main"]
         case _:
             # Default case, use release name directly (should never happen)
-            print(f"Warning: unexpected release_alias '{release_alias}' for release '{release}'")
             return [f"deb {options} {url} {release} main"]
 
 
