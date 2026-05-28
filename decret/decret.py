@@ -613,11 +613,14 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
 def prepare_sources(snapshot_id: str, release: str = None):
     """
     Generates the Debian snapshot APT source lines for the Dockerfile.
-    Strategy: 
-        - If the release does exist in the snapshot takes testing/stable/unstable aliases.
-        - If a USR_MERGE release (bookworm/trixie) is detected alongside the target release, use the release name directly to avoid usr-merge conflicts.
-        - If the release is 'testing' in the snapshot, use testing/stable/unstable aliases.
-        - Otherwise (stable/oldstable/oldoldstable), use the release name directly.
+    Strategy:
+        - If a USR Merge release (bookworm/trixie) is detected alongside a pre-USR Merge target
+          release (bullseye and below) in stable or testing, use the release name directly to avoid
+          usr-merge conflicts.
+        - If the release does not exist in the snapshot, fallback to testing/stable/unstable aliases.
+        - If the release is in testing, use testing/stable/unstable aliases.
+        - If the release is a USR Merge release (bookworm/trixie) in stable, use testing/stable/unstable aliases.
+        - If the release is a pre-USR Merge release in stable/oldstable/oldoldstable, use the release name directly.
                          
     Args:
         snapshot_id (str): The snapshot identifier used to build the snapshot URL.
@@ -635,34 +638,52 @@ def prepare_sources(snapshot_id: str, release: str = None):
     # See https://wiki.debian.org/UsrMerge for more details on usr-merge
     USR_MERGE_RELEASES = ["bookworm", "trixie"]
 
-    usr_merge_detected = any(
-        target in USR_MERGE_RELEASES
-        for target in aliases.values()
-    )
+    # Check if the target release is a pre-USR Merge release
+    target_is_pre_usr_merge = release not in USR_MERGE_RELEASES
+
+    # Check if a USR Merge release is present in stable or testing in the snapshot
+    usr_merge_in_stable_or_testing = False
+    for alias, target in aliases.items():
+        if alias in ["stable", "testing"] and target in USR_MERGE_RELEASES:
+            usr_merge_in_stable_or_testing = True
+            break
+
+    # USR Merge conflict only if this two conditions are met
+    usr_merge_conflict = target_is_pre_usr_merge and usr_merge_in_stable_or_testing
+
+    if usr_merge_conflict:
+        # Pre-USR Merge release alongside a USR Merge release, use release name directly
+        return [f"deb {options} {url} {release} main"]
 
     release_exists_in_snapshot = release in aliases.values()
 
-    release_alias = next(
-       (alias for alias, target in aliases.items() if target == release),
-       "not_found"
-    )
-
     if not release_exists_in_snapshot:
+        # Release not found in snapshot, fallback to testing/stable/unstable aliases
         releases = ["testing", "stable", "unstable"]
         return [f"deb {options} {url} {rel} main" for rel in releases]
 
-    if usr_merge_detected:
-       return [f"deb {options} {url} {release} main"]
+    # Find the alias of the target release in the snapshot
+    release_alias = "not_found"
+    for alias, target in aliases.items():
+        if target == release:
+            release_alias = alias
+            break
 
     match release_alias:
         case "testing":
-           releases = ["testing", "stable", "unstable"]
-           return [f"deb {options} {url} {rel} main" for rel in releases]
-
+             # Release is testing in the snapshot, use testing/stable/unstable aliases
+            releases = ["testing", "stable", "unstable"]
+            return [f"deb {options} {url} {rel} main" for rel in releases]
         case "stable" | "oldstable" | "oldoldstable":
+            if release in USR_MERGE_RELEASES:
+                # USR Merge release in stable, use testing/stable/unstable aliases
+                releases = ["testing", "stable", "unstable"]
+                return [f"deb {options} {url} {rel} main" for rel in releases]
+            # Pre-USR Merge release, use release name directly
             return [f"deb {options} {url} {release} main"]
-
         case _:
+            # Default case, use release name directly (should never happen)
+            print(f"Warning: unexpected release_alias '{release_alias}' for release '{release}'")
             return [f"deb {options} {url} {release} main"]
 
 
@@ -845,3 +866,4 @@ def main():  # pragma: no cover
         return
 
     run_docker(args)
+    
