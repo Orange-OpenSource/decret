@@ -287,7 +287,7 @@ def search_in_table(release: str, info_table) -> Tuple[list[dict], list[str]]:
                 src_package = data[0]
                 release = data[2]
                 fixed_version = data[3]
-                if (str(fixed_version).strip().startswith("(not")):
+                if str(fixed_version).strip().startswith("(not"):
                     tmp = " ".join(data[3:])
                     raise ReleaseNotAffectedByCVE(f"Debian {release} was not affected by CVE "
                                                   f"for package '{src_package}'. "
@@ -343,12 +343,18 @@ def get_cve_details_from_selenium(browser, args: argparse.Namespace) -> list[dic
 
 def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
     """
-    Parses the Debian Security Tracker JSON file to extract details about a given CVE for a specific Debian release.
-    Supports loading the JSON from a cache file if provided, otherwise fetches it from the official Debian tracker.
-    Handles cases where the package is present but the vulnerability is not fixed, by checking the repositories field:
-    - If the CVE is fixed for the current release, returns a list with: {'src_package', 'release', 'fixed_version'}.
-    - If the CVE is unfixed and the vulnerable package is not found retun a list with : {'src_package', 'release', 'unfixed'}
-    - If the CVE is unfixed but the vulnerable package is available, adds the key 'vulnerable_version' to {'src_package', 'release', 'unfixed'}.
+    Parses the Debian Security Tracker JSON file
+    to extract details about a given CVE for a specific Debian release.
+    Supports loading the JSON from a cache file if provided, 
+    otherwise fetches it from the official Debian tracker.
+    Handles cases where the package is present but the vulnerability isn't fixed,
+    by checking the repositories field:
+    - If the CVE is fixed for the current release, 
+    returns a list with: {'src_package', 'release', 'fixed_version'}.
+    - If the CVE is unfixed and the vulnerable package is not found 
+    retun a list with : {'src_package', 'release', 'unfixed'}
+    - If the CVE is unfixed but the vulnerable package is available, 
+    adds the key 'vulnerable_version' to {'src_package', 'release', 'unfixed'}.
 
     Returns:
         cve_details: a list of dictionaries with the package name, release, and fix status.
@@ -385,10 +391,9 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
             continue
         affected_packages.append((package_name, cve_info))
 
-    if not affected_packages: 
+    if not affected_packages:
         raise CVENotFound("No affected package found.")
-        
-    # Step 2: Build results, skip packages with fixed_version == "0", only if other packages have a valid fixed_version
+    # Build results, skip packages fixed_version == "0", only if others have a valid fixed_version
     results = []
     for package_name, cve_info in affected_packages:
         # Get the release specific info for this CVE
@@ -417,7 +422,6 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         # If a vulnerable version is available, add it to the result
         if vulnerable_version:
             result["vulnerable_version"] = vulnerable_version
-        
         results.append(result)
         break # Only one valid package is selected
 
@@ -434,8 +438,10 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
 
 def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[dict]:
     """
-    Retrieves the vulnerable version for each package, using both the JSON data and snapshot.debian.org.
-    For each package, determines the vulnerable version based on the CVE details and available package version for the specified release.
+    Retrieves the vulnerable version for each package, 
+    using both the JSON data and snapshot.debian.org.
+    For each package, determines the vulnerable version based on the CVE details 
+    and available package version for the specified release.
 
     Returns:
         cve_details : The updated list of dictionaries with the 'vuln_version' key added.
@@ -461,7 +467,7 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
             elif known_versions:
                 item["vuln_version"] = known_versions[0]
             else:
-                item["vuln_version"] = None   
+                item["vuln_version"] = None
         else:
             for version, prev_version in zip(known_versions[:-1], known_versions[1:]):
                 if version == item["fixed_version"]:
@@ -495,7 +501,8 @@ def get_hash_and_bin_names(
     args: argparse.Namespace, cve_details: list[dict]
 ) -> list[dict]:
     """
-    For each package in cve_details, retrieves the hash of the vulnerable version and the associated binary package name.
+    For each package in cve_details, retrieves the hash of the vulnerable version
+    and the associated binary package name.
     Tries to fetch the hash from the binary files.
     Updates each dictionary with the 'hash' and 'bin_name' keys.
 
@@ -587,7 +594,8 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
 
     Returns:
         dict: A dictionary mapping aliases to release names.
-              For example: {'stable': 'bookworm', 'testing': 'trixie', 'oldstable': 'bullseye', 'oldoldstable': 'buster', 'unstable': 'sid'}
+              For example: {'stable': 'bookworm', 'testing': 'trixie',
+                            'oldstable': 'bullseye', 'oldoldstable': 'buster', 'unstable': 'sid'}
     """
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/dists/"
     try:
@@ -596,11 +604,11 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
     except Exception as exc:
         print(f"Could not parse snapshot aliases: {exc}")
         return {}
-    
     aliases = {}
-    
-    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
-    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
+    # Match HTML symlink entries like: 
+    # <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)"' +
+                        '>\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
 
     for match in pattern.finditer(server_answer.text):
         alias = match.group(1).strip()
@@ -615,19 +623,24 @@ def prepare_sources(snapshot_id: str, release: str = None):
     Generates the Debian snapshot APT source lines for the Dockerfile.
     Strategy:
         - If a USR Merge release (bookworm/trixie) is detected alongside a pre-USR Merge target
-          release (bullseye and below) in stable or testing, use the release name directly to avoid
-          usr-merge conflicts.
-        - If the release does not exist in the snapshot, fallback to testing/stable/unstable aliases.
-        - If the release is in testing, use testing/stable/unstable aliases.
-        - If the release is a USR Merge release (bookworm/trixie) in stable, use testing/stable/unstable aliases.
-        - If the release is a pre-USR Merge release in stable/oldstable/oldoldstable, use the release name directly.
+        release (bullseye and below) in stable or testing, use the release name directly to avoid
+        usr-merge conflicts.
+        - If the release does not exist in the snapshot, 
+        fallback to testing/stable/unstable aliases.
+        - If the release is in testing, 
+        use testing/stable/unstable aliases.
+        - If the release is a USR Merge release (bookworm/trixie) in stable, 
+        use testing/stable/unstable aliases.
+        - If the release is a pre-USR Merge release in stable/oldstable/oldoldstable, 
+        use the release name directly.
                          
     Args:
         snapshot_id (str): The snapshot identifier used to build the snapshot URL.
         release (str): Debian release (e.g. 'bullseye', 'bookworm'). Defaults to None.
 
     Returns:
-        list[str]: A list of APT source lines to add to the Dockerfile. Returns an empty list if the vulnerability is not fixed.
+        list[str]: A list of APT source lines to add to the Dockerfile.
+        Returns an empty list if the vulnerability is not fixed.
     """
     options = (
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
@@ -636,15 +649,15 @@ def prepare_sources(snapshot_id: str, release: str = None):
 
     aliases = get_snapshot_aliases(snapshot_id)
     # See https://wiki.debian.org/UsrMerge for more details on usr-merge
-    USR_MERGE_RELEASES = ["bookworm", "trixie"]
+    usr_merge_releases = ["bookworm", "trixie"]
 
     # Check if the target release is a pre-USR Merge release
-    target_is_pre_usr_merge = release not in USR_MERGE_RELEASES
+    target_is_pre_usr_merge = release not in usr_merge_releases
 
     # Check if a USR Merge release is present in stable or testing in the snapshot
     usr_merge_in_stable_or_testing = False
     for alias, target in aliases.items():
-        if alias in ["stable", "testing"] and target in USR_MERGE_RELEASES:
+        if alias in ["stable", "testing"] and target in usr_merge_releases:
             usr_merge_in_stable_or_testing = True
             break
 
@@ -675,7 +688,7 @@ def prepare_sources(snapshot_id: str, release: str = None):
             releases = ["testing", "stable", "unstable"]
             return [f"deb {options} {url} {rel} main" for rel in releases]
         case "stable" | "oldstable" | "oldoldstable":
-            if release in USR_MERGE_RELEASES:
+            if release in usr_merge_releases:
                 # USR Merge release in stable, use testing/stable/unstable aliases
                 releases = ["testing", "stable", "unstable"]
                 return [f"deb {options} {url} {rel} main" for rel in releases]
@@ -817,21 +830,17 @@ def main():  # pragma: no cover
             raise FatalError(
                 f"\n{invalid_exc}"
             ) from invalid_exc
-        
         except Exception as selenium_exc:
             raise FatalError(
                 "Error while retrieving CVE details using Selenium"
-            ) from selenium_exc 
+            ) from selenium_exc
     except ReleaseNotAffectedByCVE as exc:
-        raise FatalError(exc)
-   
-    print(f"CVE details fetched.\n {cve_details}\n\n") 
-    
+        raise FatalError(exc) from exc
+    print(f"CVE details fetched.\n {cve_details}\n\n")
     # Get the vulnerable version for the affected package.
     print("Getting the vulnerable version.")
     cve_details = get_vuln_version(args, cve_details)
     print(f"vulnerable version : {cve_details[0]['vuln_version']}\n\n")
-    
     # We determine if the vulnerability is fixed or not
     print("Getting the hash of the package")
     cve_details = get_hash_and_bin_names(args, cve_details)
