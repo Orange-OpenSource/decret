@@ -475,7 +475,7 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
 def get_bin_names(cve_details: list[dict]) -> list[str]:
     """
     For each package in cve_details, retrieves the binary package names associated with the vulnerable version.
-    Excludes debug, development, documentation and installer packages to avoid installation failures in the Dockerfile.
+    Excludes debug, development, documentation and installer packages.
     """
     EXCLUDED_SUFFIXES = {'-dbgsym', '-dbg', '-udeb', '-doc', '-dev'}
     bin_names = []
