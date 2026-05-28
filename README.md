@@ -5,7 +5,7 @@ This tool reproduces a vulnerable Debian environment for a given CVE number.
 
 ## License 
 
-Copyright (c) 2023-2025 Orange
+Copyright (c) 2023-2026 Orange
 This code is released under the terms of the BSD 3-Clause license. See the `license.txt` file for more information.
 
 
@@ -79,6 +79,13 @@ pytest
 ```
 5. Verify your code passes CI tests under `.github/workflows`
 6. Open pull request
+
+### Troubleshooting
+If you encounter any issues, please refer to the [Troubleshooting Journal](./TROUBLESHOOTING.md) for solutions.
+
+### Additional notes
+- Make sure to respect the configuration file syntax.  
+- For more details, refer to the source code and comments in `decret_auto/decret_auto.py`.
 
 ## Working principle
 
