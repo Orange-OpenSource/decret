@@ -480,10 +480,11 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
 
 def get_bin_names(cve_details: list[dict]) -> list[str]:
     """
-    For each package in cve_details, retrieves the binary package names associated with the vulnerable version.
+    For each package in cve_details, retrieves the binary package names
+    associated with the vulnerable version.
     Excludes debug, development, documentation and installer packages.
     """
-    EXCLUDED_SUFFIXES = {'-dbgsym', '-dbg', '-udeb', '-doc', '-dev'}
+    excluded_suffixes = {'-dbgsym', '-dbg', '-udeb', '-doc', '-dev'}
     bin_names = []
     for item in cve_details:
         # pylint: disable=line-too-long
@@ -491,7 +492,7 @@ def get_bin_names(cve_details: list[dict]) -> list[str]:
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
         for res in response:
             name = res["name"]
-            if not any(name.endswith(suffix) for suffix in EXCLUDED_SUFFIXES):
+            if not any(name.endswith(suffix) for suffix in excluded_suffixes):
                 bin_names.append(name)
 
     return bin_names
