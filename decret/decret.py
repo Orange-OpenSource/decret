@@ -353,7 +353,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
     Returns:
         cve_details: a list of dictionaries with the package name, release, and fix status.
 
-    Raises
+    Raises:
         CVENotFound: If no affected package is found for the given CVE and release.
     """
     response = None
@@ -394,18 +394,20 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         # Get the release specific info for this CVE
         release_info = cve_info["releases"][args.release]
         vulnerable_version = None
+
         # If the vulnerability is still open (unfixed)
         if release_info["status"] == "open":
             fixed_version = "(unfixed)"
             # Try to get the vulnerable version from the repositories field (`repositories` key)
             repositories = release_info.get("repositories", {})
             vulnerable_version = repositories.get(args.release)
+
         else:
             # If fixed, get the fixed version package
             fixed_version = cve_info["releases"][args.release]["fixed_version"]
             if fixed_version == "0":
                 continue
-            
+
         #Build the result (dictionary) for this package/release
         result = {
                 "src_package": package_name,
@@ -414,7 +416,8 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
         }
         # If a vulnerable version is available, add it to the result
         if vulnerable_version:
-            result["vulnerable_version"] = vulnerable_version        
+            result["vulnerable_version"] = vulnerable_version
+        
         results.append(result)
         break # Only one valid package is selected
 
@@ -447,11 +450,13 @@ def get_vuln_version(args: argparse.Namespace, cve_details: list[dict]) -> list[
         url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/"
         response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
         known_versions = [x["version"] for x in response if "~bpo" not in x["version"]]
+
         # If the package is unfixed
         if item["fixed_version"] == "(unfixed)":
             # If a vulnerable version is already known (from the JSON), we use it
             if "vulnerable_version" in item and item["vulnerable_version"]:
                 item["vuln_version"] = item["vulnerable_version"]
+
             # Otherwise, we use the latest available version from snapshot.debian.org (index 0)
             elif known_versions:
                 item["vuln_version"] = known_versions[0]
@@ -497,7 +502,6 @@ def get_hash_and_bin_names(
     for item in cve_details:
         try:
             # pylint: disable=line-too-long
-            # TODO: Add a verification, sometimes (for some vulnerable versions), the link is not valid.
             url = f"http://snapshot.debian.org/mr/binary/{item['src_package']}/{item['vuln_version']}/binfiles"
             response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
             for res in response:
@@ -511,7 +515,6 @@ def get_hash_and_bin_names(
                 # We get the hash from the src files, but we also collect the
                 # binary packages names associated for the Dockerfile.
                 # pylint: disable=line-too-long
-                # TODO: Add a verification, sometimes (for some vulnerable versions), the link is not valid.
                 url = f"http://snapshot.debian.org/mr/package/{item['src_package']}/{item['vuln_version']}/srcfiles"
                 response = requests.get(url, timeout=DEFAULT_TIMEOUT).json()["result"]
                 item["hash"] = response[-1]["hash"]
@@ -568,13 +571,80 @@ def write_cmdline(args: argparse.Namespace):
         cmdline_file.write("\n")
 
 
-def prepare_sources(snapshot_id: str):
+def get_snapshot_aliases(snapshot_id: str) -> dict:
+    """
+    Parses the snapshot directory to find alias mappings to their actual releases.
+
+    Args:
+        snapshot_id (str): The snapshot identifier (e.g.'20250624T023934Z').
+
+    Returns:
+        dict: A dictionary mapping aliases to release names.
+              For example: {'stable': 'bookworm', 'testing': 'trixie', 'oldstable': 'bullseye', 'oldoldstable': 'buster', 'unstable': 'sid'}
+    """
+    url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/dists/"
+    try:
+        server_answer = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        server_answer.raise_for_status()
+    except Exception as exc:
+        print(f"Could not parse snapshot aliases: {exc}")
+        return {}
+    
+    aliases = {}
+    
+    # Match HTML symlink entries like: <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
+    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
+
+    for match in pattern.finditer(server_answer.text):
+        alias = match.group(1).strip()
+        target = match.group(2).strip()
+        aliases[alias] = target
+
+    return aliases
+
+
+def prepare_sources(snapshot_id: str, release: str = None):
+    """
+    Generates the Debian snapshot APT source lines for the Dockerfile.
+    For bookworm/trixie, uses the original alias-based logic (testing/stable/unstable). 
+    For older releases, parses the snapshot to determine the correct source strategy:
+        - Release is 'testing' -> use testing/stable/unstable aliases
+        - Release is 'stable' -> use release name directly
+        - Release is 'oldstable' or 'oldoldstable' -> use release name directly
+                         
+    Args:
+        snapshot_id (str): The snapshot identifier used to build the snapshot URL.
+        vuln_fixed (bool): If the vulnerability has been fixed.
+        release (str): Debian release (e.g. 'bullseye', 'bookworm'). Defaults to None.
+
+    Returns:
+        list[str]: A list of APT source lines to add to the Dockerfile. Returns an empty list if the vulnerability is not fixed.
+    """
     options = (
         "[check-valid-until=no allow-insecure=yes allow-downgrade-to-insecure=yes]"
     )
     url = f"http://snapshot.debian.org/archive/debian/{snapshot_id}/"
-    release = ["testing", "stable", "unstable"]
-    return [f"deb {options} {url} {rel} main" for rel in release]
+    # See https://wiki.debian.org/UsrMerge for more details on usr-merge
+    USR_MERGE_RELEASES = ["bookworm", "trixie"]
+    if release in USR_MERGE_RELEASES or release is None:
+        releases = ["testing", "stable", "unstable"]
+        return [f"deb {options} {url} {rel} main" for rel in releases]
+
+    aliases = get_snapshot_aliases(snapshot_id)
+    release_alias = next(
+        (alias for alias, target in aliases.items() if target == release),
+    "not_found")
+
+    match release_alias:
+        case "testing":
+            releases = ["testing", "stable", "unstable"]
+            return [f"deb {options} {url} {rel} main" for rel in releases]
+
+        case "stable" | "oldstable" | "oldoldstable":
+            return [f"deb {options} {url} {release} main"]
+            
+        case _:
+            return [f"deb {options} {url} {release} main"]
 
 
 # pylint: disable=too-many-locals
@@ -743,7 +813,7 @@ def main():  # pragma: no cover
         finally:
             browser.quit()
 
-    source_lines = prepare_sources(snapshot_id)
+    source_lines = prepare_sources(snapshot_id, args.release)
 
     write_dockerfile(args, cve_details, source_lines)
     write_cmdline(args)
