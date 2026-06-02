@@ -352,7 +352,7 @@ def get_cve_details_from_json(args: argparse.Namespace) -> list[dict]:
     - If the CVE is fixed for the current release, 
     returns a list with: {'src_package', 'release', 'fixed_version'}.
     - If the CVE is unfixed and the vulnerable package is not found 
-    retun a list with : {'src_package', 'release', 'unfixed'}
+    returns a list with : {'src_package', 'release', 'unfixed'}
     - If the CVE is unfixed but the vulnerable package is available, 
     adds the key 'vulnerable_version' to {'src_package', 'release', 'unfixed'}.
 
@@ -606,11 +606,12 @@ def get_snapshot_aliases(snapshot_id: str) -> dict:
         print(f"Could not parse snapshot aliases: {exc}")
         return {}
     aliases = {}
-    # Match HTML symlink entries like: 
+    # Match HTML symlink entries like:
     # <a href="oldstable">oldstable</a> -&gt; <a href="bullseye">bullseye</a>
-    pattern = re.compile(r'<a href="(stable|testing|unstable|oldstable|oldoldstable)"' +
-                        '>\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>')
-
+    pattern = re.compile(
+        r'<a href="(stable|testing|unstable|oldstable|oldoldstable)">'
+        r'\1</a>\s*-&gt;\s*<a href="([\w-]+)">\2</a>'
+    )
     for match in pattern.finditer(server_answer.text):
         alias = match.group(1).strip()
         target = match.group(2).strip()
@@ -652,9 +653,6 @@ def prepare_sources(snapshot_id: str, release: str = None):
     # See https://wiki.debian.org/UsrMerge for more details on usr-merge
     usr_merge_releases = ["bookworm", "trixie"]
 
-    # Check if the target release is a pre-USR Merge release
-    target_is_pre_usr_merge = release not in usr_merge_releases
-
     # Check if a USR Merge release is present in stable or testing in the snapshot
     usr_merge_in_stable_or_testing = False
     for alias, target in aliases.items():
@@ -663,7 +661,7 @@ def prepare_sources(snapshot_id: str, release: str = None):
             break
 
     # USR Merge conflict only if this two conditions are met
-    usr_merge_conflict = target_is_pre_usr_merge and usr_merge_in_stable_or_testing
+    usr_merge_conflict = (release not in usr_merge_releases) and usr_merge_in_stable_or_testing
 
     if usr_merge_conflict:
         # Pre-USR Merge release alongside a USR Merge release, use release name directly
@@ -802,7 +800,6 @@ def init_decret():  # pragma: no cover
             )
             browser = None
             args.selenium = None
-
     return args, browser
 
 
@@ -824,7 +821,6 @@ def main():  # pragma: no cover
             raise FatalError(
                 "Can't get the details for CVE. Please consider using --selenium."
             ) from exc
-
         try:
             cve_details = get_cve_details_from_selenium(browser, args)
         except ReleaseNotAffectedByCVE as invalid_exc:
@@ -873,6 +869,5 @@ def main():  # pragma: no cover
     if args.dont_run or RUNS_ON_GITHUB_ACTIONS:
         print("My work here is done.")
         return
-
     run_docker(args)
     
