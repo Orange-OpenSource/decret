@@ -1,6 +1,6 @@
 astroid==3.3.11
 attrs==25.3.0
-black==25.1.0
+black==26.10.1
 certifi==2025.7.14
 charset-normalizer==3.4.2
 click==8.2.1
